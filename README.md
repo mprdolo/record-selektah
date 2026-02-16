@@ -29,7 +29,7 @@ Inspired by reggae sound system DJs ("selektahs") of the 1960s-70s.
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/YOUR_USERNAME/record-selektah.git
+   git clone https://github.com/mprdolo/record-selektah.git
    cd record-selektah
    ```
 
