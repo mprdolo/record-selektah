@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Record Selektah</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo" id="logo" style="cursor:pointer">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="16" cy="16" r="15" stroke="currentColor" stroke-width="1.5"/>
+                        <circle cx="16" cy="16" r="10" stroke="currentColor" stroke-width="0.75" opacity="0.4"/>
+                        <circle cx="16" cy="16" r="5" stroke="currentColor" stroke-width="0.75" opacity="0.4"/>
+                        <circle cx="16" cy="16" r="2" fill="currentColor"/>
+                    </svg>
+                </div>
+                <h1 class="logo-text">RECORD SELEKTAH</h1>
+            </div>
+            <div class="header-buttons">
+                <button class="btn btn-header" id="btn-bigboard" title="Big Board Explorer">
+                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="16" height="14" rx="2"/>
+                        <line x1="2" y1="8" x2="18" y2="8"/>
+                        <line x1="7" y1="8" x2="7" y2="17"/>
+                    </svg>
+                    Big Board
+                </button>
+                <button class="btn btn-header" id="btn-library" title="The Library">
+                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="4" height="14" rx="1"/>
+                        <rect x="8" y="3" width="4" height="14" rx="1"/>
+                        <rect x="14" y="3" width="4" height="14" rx="1"/>
+                    </svg>
+                    Library
+                </button>
+                <button class="btn btn-header" id="btn-lstats" title="Listening Stats">
+                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="12" width="4" height="6" rx="1"/>
+                        <rect x="8" y="7" width="4" height="11" rx="1"/>
+                        <rect x="14" y="3" width="4" height="15" rx="1"/>
+                    </svg>
+                    Stats
+                </button>
+                <button class="btn btn-header" id="btn-excluded" title="Excluded Albums">
+                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="10" cy="10" r="8"/>
+                        <line x1="4" y1="4" x2="16" y2="16"/>
+                    </svg>
+                    Excluded
+                </button>
+                <button class="btn btn-header" id="btn-sync" title="Sync Data">
+                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 1v5h-5"/>
+                        <path d="M3 19v-5h5"/>
+                        <path d="M15.5 5.5A8 8 0 0 0 4 6.5"/>
+                        <path d="M4.5 14.5A8 8 0 0 0 16 13.5"/>
+                    </svg>
+                    Sync Data
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Sync Modal -->
+    <div class="modal-overlay" id="sync-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Sync Data</h2>
+                <button class="btn-close" id="btn-sync-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="sync-actions">
+                    <button class="btn btn-sync-action" id="btn-sync-discogs">
+                        Sync Discogs Collection
+                    </button>
+                    <button class="btn btn-sync-action" id="btn-sync-bigboard">
+                        Import Big Board CSV
+                    </button>
+                    <button class="btn btn-sync-action" id="btn-sync-master-years">
+                        Fetch Master Release Years
+                    </button>
+                </div>
+                <div class="sync-progress hidden" id="sync-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="sync-progress-fill"></div>
+                    </div>
+                    <p class="sync-message" id="sync-message">Starting...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Big Board Explorer (replaces main content when active) -->
+    <section class="bigboard hidden" id="bigboard-section">
+        <div class="bigboard-header">
+            <button class="btn btn-secondary btn-back" id="btn-bigboard-back">
+                <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="13 4 7 10 13 16"/>
+                </svg>
+                Back
+            </button>
+            <h2 class="bigboard-title">Big Board Explorer</h2>
+            <div class="bigboard-count" id="bigboard-count"></div>
+        </div>
+
+        <div class="bigboard-controls">
+            <div class="bigboard-tabs">
+                <button class="bigboard-tab active" data-view="rank">Rank</button>
+                <button class="bigboard-tab" data-view="decade">Decades</button>
+                <button class="bigboard-tab" data-view="genre">Genres</button>
+                <button class="bigboard-tab" data-view="heatmap">Heatmap</button>
+            </div>
+            <div class="bigboard-filter">
+                <label class="filter-radio">
+                    <input type="radio" name="bb-filter" value="all" checked> All
+                </label>
+                <label class="filter-radio">
+                    <input type="radio" name="bb-filter" value="owned"> Owned
+                </label>
+                <label class="filter-radio">
+                    <input type="radio" name="bb-filter" value="unowned"> Not Owned
+                </label>
+            </div>
+            <div class="section-search">
+                <input type="text" class="section-search-input" id="bigboard-search" placeholder="Search Big Board...">
+            </div>
+        </div>
+
+        <div class="bigboard-jump hidden" id="bigboard-jump"></div>
+        <div class="bigboard-content" id="bigboard-content"></div>
+    </section>
+
+    <!-- The Library -->
+    <section class="library-section hidden" id="library-section">
+        <div class="library-header">
+            <button class="btn btn-secondary btn-back" id="btn-library-back">
+                <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="13 4 7 10 13 16"/>
+                </svg>
+                Back
+            </button>
+            <h2 class="library-title">The Library</h2>
+            <div class="library-count" id="library-count"></div>
+        </div>
+        <div class="library-controls">
+            <div class="library-sort">
+                <label for="library-sort-select" class="library-sort-label">Sort by:</label>
+                <select id="library-sort-select" class="library-sort-select">
+                    <option value="artist">Artist</option>
+                    <option value="title">Album Title</option>
+                    <option value="master_year">Album Year</option>
+                    <option value="release_year">Version Year</option>
+                </select>
+                <button class="btn btn-sort-order" id="library-sort-order" title="Toggle sort order">
+                    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="5 8 10 3 15 8"/>
+                        <polyline points="5 12 10 17 15 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="section-search">
+                <input type="text" class="section-search-input" id="library-search" placeholder="Search library...">
+            </div>
+        </div>
+        <div class="library-jump hidden" id="library-jump"></div>
+        <div class="library-content" id="library-content"></div>
+    </section>
+
+    <!-- Listening Stats -->
+    <section class="lstats-section hidden" id="lstats-section">
+        <div class="lstats-header">
+            <button class="btn btn-secondary btn-back" id="btn-lstats-back">
+                <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="13 4 7 10 13 16"/>
+                </svg>
+                Back
+            </button>
+            <h2 class="lstats-title">Listening Stats</h2>
+            <div class="lstats-count" id="lstats-count"></div>
+        </div>
+        <div class="lstats-controls">
+            <div class="section-search">
+                <input type="text" class="section-search-input" id="lstats-search" placeholder="Search stats...">
+            </div>
+        </div>
+        <div class="lstats-content" id="lstats-content"></div>
+    </section>
+
+    <!-- Excluded Albums Section -->
+    <section class="excluded-section hidden" id="excluded-section">
+        <div class="excluded-header">
+            <button class="btn btn-secondary btn-back" id="btn-excluded-back">
+                <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="13 4 7 10 13 16"/>
+                </svg>
+                Back
+            </button>
+            <h2 class="excluded-title">Excluded</h2>
+            <div class="excluded-count" id="excluded-count"></div>
+        </div>
+        <div class="excluded-controls">
+            <div class="excluded-sort">
+                <label for="excluded-sort-select" class="library-sort-label">Sort by:</label>
+                <select id="excluded-sort-select" class="library-sort-select">
+                    <option value="artist">Artist</option>
+                    <option value="title">Title</option>
+                </select>
+            </div>
+            <div class="section-search">
+                <input type="text" class="section-search-input" id="excluded-search" placeholder="Search excluded...">
+            </div>
+        </div>
+        <div class="excluded-list" id="excluded-list">
+            <p class="excluded-empty" id="excluded-empty">No excluded albums.</p>
+        </div>
+    </section>
+
+    <!-- Help / Getting Started -->
+    <section class="help-section hidden" id="help-section">
+        <div class="help-header">
+            <button class="btn btn-secondary btn-back" id="btn-help-back">
+                <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="13 4 7 10 13 16"/>
+                </svg>
+                Back
+            </button>
+            <h2 class="help-title">Getting Started</h2>
+        </div>
+
+        <div class="help-content">
+            <div class="help-block">
+                <h3>Welcome</h3>
+                <p>Record Selektah is a personal vinyl listening companion. It connects to your <a href="https://www.discogs.com" target="_blank" rel="noopener">Discogs</a> collection and randomly selects records for you to listen to, tracks your play history, and optionally integrates with a personal album ranking list (the "Big Board").</p>
+            </div>
+
+            <div class="help-block">
+                <h3>Prerequisites</h3>
+                <ul>
+                    <li>Python 3.12+</li>
+                    <li>pip (Python package manager)</li>
+                    <li>A <a href="https://www.discogs.com" target="_blank" rel="noopener">Discogs</a> account with a collection</li>
+                </ul>
+            </div>
+
+            <div class="help-block">
+                <h3>Initial Setup</h3>
+                <ol>
+                    <li>Clone the repository:
+                        <pre><code>git clone https://github.com/YOUR_USERNAME/record-selektah.git
+cd record-selektah</code></pre>
+                    </li>
+                    <li>Install dependencies:
+                        <pre><code>pip install -r requirements.txt</code></pre>
+                    </li>
+                    <li>Create a <code>.env</code> file from the example:
+                        <pre><code>cp .env.example .env</code></pre>
+                    </li>
+                    <li>Open <code>.env</code> and set your Discogs credentials:
+                        <pre><code>DISCOGS_TOKEN=your_token_here
+DISCOGS_USERNAME=your_username</code></pre>
+                        <p>Generate a personal access token at <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener">discogs.com/settings/developers</a>.</p>
+                    </li>
+                    <li>Run the app:
+                        <pre><code>python app.py</code></pre>
+                        <p>Open <code>http://localhost:3345</code> in your browser.</p>
+                    </li>
+                </ol>
+            </div>
+
+            <div class="help-block">
+                <h3>Syncing Your Collection</h3>
+                <p>Click <strong>Sync Data</strong> in the header, then choose <strong>"Sync Discogs Collection"</strong>. This imports every release from your Discogs collection into Record Selektah. You can re-sync any time to pick up additions or removals.</p>
+            </div>
+
+            <div class="help-block">
+                <h3>Big Board (Optional)</h3>
+                <p>The Big Board is your personal album ranking &mdash; any list of albums ranked by preference. To use it:</p>
+                <ol>
+                    <li>Create a CSV file with 4 columns: <strong>Artist</strong>, <strong>Title</strong>, <strong>Year</strong>, <strong>Owned</strong>.
+                        <pre><code>Artist,Title,Year,Owned
+Radiohead,OK Computer,1997,x
+Miles Davis,Kind of Blue,1959,
+Talking Heads,Remain in Light,1980,x</code></pre>
+                        <p>Mark "x" in the Owned column for albums you own. Leave it blank otherwise.</p>
+                    </li>
+                    <li>Place the file at <code>data/big_board.csv</code>.</li>
+                    <li>Click <strong>Sync Data</strong> &rarr; <strong>"Import Big Board CSV"</strong>.</li>
+                    <li>Unmatched entries can be manually linked to your collection in the <strong>Big Board Explorer</strong> by clicking on unowned cards.</li>
+                </ol>
+            </div>
+
+            <div class="help-block">
+                <h3>Fetching Master Years (Optional)</h3>
+                <p>Click <strong>Sync Data</strong> &rarr; <strong>"Fetch Master Release Years"</strong> to backfill original release years from Discogs master releases. This ensures albums show the original year rather than the year of your specific pressing.</p>
+            </div>
+
+            <div class="help-block">
+                <h3>Using the App</h3>
+                <ul>
+                    <li><strong>Home:</strong> Click "Select Next Record" to get a random pick from your collection. Mark it as Played, Skip, or Exclude it from future selections.</li>
+                    <li><strong>Big Board:</strong> Browse your ranked album list, view by decade, genre, or as a heatmap.</li>
+                    <li><strong>Library:</strong> Browse your full Discogs collection, sorted by artist, title, or year.</li>
+                    <li><strong>Stats:</strong> View your most-played albums ranked by play count.</li>
+                    <li><strong>Excluded:</strong> Manage albums you've excluded from random selection.</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="main" id="main-content">
+
+        <!-- Welcome State (shown when no albums synced) -->
+        <section class="welcome hidden" id="welcome-state">
+            <div class="welcome-icon">
+                <svg viewBox="0 0 64 64" width="64" height="64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="32" cy="32" r="30" stroke="var(--gold)" stroke-width="2"/>
+                    <circle cx="32" cy="32" r="20" stroke="var(--gold)" stroke-width="1" opacity="0.4"/>
+                    <circle cx="32" cy="32" r="10" stroke="var(--gold)" stroke-width="1" opacity="0.4"/>
+                    <circle cx="32" cy="32" r="4" fill="var(--gold)"/>
+                </svg>
+            </div>
+            <h2>Welcome to Record Selektah</h2>
+            <p>Sync your Discogs collection to get started.</p>
+            <button class="btn btn-primary" id="btn-welcome-sync">Sync Collection</button>
+        </section>
+
+        <!-- Selection Area -->
+        <section class="selection" id="selection-area">
+
+            <!-- Empty state (before first pick) -->
+            <div class="selection-empty" id="selection-empty">
+                <p class="selection-prompt">What are you listening to today?</p>
+                <button class="btn btn-primary btn-select" id="btn-select-first">
+                    SELECT NEXT RECORD
+                </button>
+            </div>
+
+            <!-- Album display (after pick) -->
+            <div class="selection-result hidden" id="selection-result">
+                <div class="album-card">
+                    <div class="album-cover-wrap">
+                        <img class="album-cover" id="album-cover" src="" alt="Album cover">
+                    </div>
+                    <div class="album-info">
+                        <h2 class="album-artist" id="album-artist"></h2>
+                        <h3 class="album-title" id="album-title"></h3>
+                        <p class="album-meta" id="album-meta"></p>
+                        <p class="album-rank hidden" id="album-rank"></p>
+                        <div class="album-links">
+                            <a class="album-link" id="album-discogs-link" href="#" target="_blank" rel="noopener">View on Discogs</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="btn btn-action btn-listened" id="btn-listened" title="I listened to this">
+                        <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polyline points="4 10 8 14 16 6"/>
+                        </svg>
+                        Played
+                    </button>
+                    <button class="btn btn-action btn-skipped" id="btn-skipped" title="Skip this one">
+                        <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <line x1="5" y1="5" x2="15" y2="15"/>
+                            <line x1="15" y1="5" x2="5" y2="15"/>
+                        </svg>
+                        Skip
+                    </button>
+                    <button class="btn btn-action btn-exclude" id="btn-exclude" title="Exclude from future selections">
+                        <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="10" cy="10" r="8"/>
+                            <line x1="4" y1="4" x2="16" y2="16"/>
+                        </svg>
+                        Exclude
+                    </button>
+                </div>
+
+                <div class="select-row">
+                    <button class="btn btn-secondary btn-prev" id="btn-previous" title="Go back to previous selection">
+                        <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polyline points="13 4 7 10 13 16"/>
+                        </svg>
+                        Previous
+                    </button>
+                    <button class="btn btn-primary btn-select" id="btn-select-next">
+                        SELECT NEXT RECORD
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stats Bar -->
+        <section class="stats-bar" id="stats-bar">
+            <div class="stat">
+                <span class="stat-value" id="stat-total">—</span>
+                <span class="stat-label">Albums</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value" id="stat-ranked">—</span>
+                <span class="stat-label">Ranked</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value" id="stat-listened">—</span>
+                <span class="stat-label">Listened</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value" id="stat-excluded">—</span>
+                <span class="stat-label">Excluded</span>
+            </div>
+        </section>
+
+        <!-- History -->
+        <section class="history" id="history-section">
+            <h2 class="section-title">Listening History</h2>
+            <div class="history-list" id="history-list">
+                <p class="history-empty" id="history-empty">No listening history yet. Select a record to get started.</p>
+            </div>
+            <button class="btn btn-secondary hidden" id="btn-load-more">Load More</button>
+        </section>
+
+    </main>
+
+    <!-- Album Detail Card Modal -->
+    <div class="modal-overlay" id="detail-modal">
+        <div class="modal modal-detail">
+            <div class="modal-header">
+                <h2 id="detail-header-title">Album Details</h2>
+                <button class="btn-close" id="btn-detail-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-layout">
+                    <div class="detail-cover-col">
+                        <img class="detail-cover" id="detail-cover" src="" alt="Album cover">
+                    </div>
+                    <div class="detail-meta-col">
+                        <h3 class="detail-artist" id="detail-artist"></h3>
+                        <h4 class="detail-title" id="detail-title"></h4>
+                        <p class="detail-year" id="detail-year"></p>
+                        <p class="detail-format" id="detail-format"></p>
+                        <div class="detail-tags" id="detail-genres"></div>
+                        <div class="detail-tags detail-tags-styles" id="detail-styles"></div>
+                        <div class="detail-rank hidden" id="detail-rank"></div>
+                        <div class="detail-stats">
+                            <span class="detail-stat" id="detail-played"></span>
+                            <span class="detail-stat" id="detail-skipped"></span>
+                        </div>
+                        <div class="detail-links">
+                            <span class="detail-link-row">
+                                <a class="detail-link" id="detail-discogs-link" href="#" target="_blank" rel="noopener">Discogs Release</a>
+                                <button class="btn-icon btn-edit-release" id="btn-edit-release" title="Edit Discogs release">&#9998;</button>
+                            </span>
+                            <span class="detail-link-row">
+                                <a class="detail-link" id="detail-master-link" href="#" target="_blank" rel="noopener">Master Release</a>
+                                <button class="btn-icon btn-edit-master" id="btn-edit-master" title="Edit master release">&#9998;</button>
+                            </span>
+                            <span class="detail-no-master hidden" id="detail-no-master">
+                                No master release
+                                <button class="btn-icon btn-set-master" id="btn-set-master" title="Set master release">+ Set</button>
+                            </span>
+                        </div>
+                        <div class="detail-release-edit hidden" id="detail-release-edit">
+                            <input type="text" class="input-master" id="input-release-id"
+                                   placeholder="Paste Discogs release URL or ID">
+                            <div class="detail-master-buttons">
+                                <button class="btn btn-sm btn-save-master" id="btn-save-release">Save</button>
+                                <button class="btn btn-sm btn-cancel-master" id="btn-cancel-release">Cancel</button>
+                            </div>
+                        </div>
+                        <div class="detail-master-edit hidden" id="detail-master-edit">
+                            <input type="text" class="input-master" id="input-master-id"
+                                   placeholder="Paste Discogs master URL or ID">
+                            <div class="detail-master-buttons">
+                                <button class="btn btn-sm btn-save-master" id="btn-save-master">Save</button>
+                                <button class="btn btn-sm btn-cancel-master" id="btn-cancel-master">Cancel</button>
+                                <button class="btn btn-sm btn-remove-master hidden" id="btn-remove-master">Remove</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Big Board Match Modal -->
+    <div class="modal-overlay" id="match-modal">
+        <div class="modal modal-detail">
+            <div class="modal-header">
+                <h2>Match Album</h2>
+                <button class="btn-close" id="btn-match-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="match-entry-info" id="match-entry-info"></div>
+                <div class="match-search">
+                    <input type="text" class="input-master" id="match-search-input"
+                           placeholder="Search your collection by artist or title...">
+                    <button class="btn btn-sm btn-save-master" id="btn-match-search">Search</button>
+                </div>
+                <div class="match-results" id="match-results"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Dialog -->
+    <div class="modal-overlay hidden" id="confirm-modal">
+        <div class="modal modal-confirm">
+            <p id="confirm-message"></p>
+            <div class="confirm-buttons">
+                <button class="btn btn-secondary" id="btn-confirm-cancel">Cancel</button>
+                <button class="btn btn-danger" id="btn-confirm-ok">Exclude</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <p class="footer-tagline">From your friendly neighborhood record obsessive at <a href="https://palmaradio.substack.com" target="_blank" rel="noopener">Public Diplomacy Records</a></p>
+        <p class="footer-credit">Created by <a href="https://palmaradio.substack.com" target="_blank" rel="noopener">M. Palma</a> · <a href="#" id="btn-help" class="footer-help-link">Help &amp; Setup</a></p>
+    </footer>
+
+    <!-- Toast notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

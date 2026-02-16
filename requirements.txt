@@ -1,0 +1,5 @@
+flask>=3.0
+python-dotenv>=1.0
+requests>=2.31
+thefuzz>=0.22
+python-Levenshtein>=0.25
