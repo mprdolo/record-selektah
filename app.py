@@ -561,6 +561,24 @@ def album_detail(album_id):
         conn.close()
 
 
+@app.route("/api/album/<int:album_id>/play-dates")
+def album_play_dates(album_id):
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT selected_at FROM listens
+               WHERE album_id = ? AND did_listen = 1
+               ORDER BY selected_at DESC""",
+            (album_id,),
+        )
+        rows = cursor.fetchall()
+        dates = [row["selected_at"] for row in rows]
+        return api_response(data={"dates": dates})
+    finally:
+        conn.close()
+
+
 @app.route("/api/album/<int:album_id>/master", methods=["POST"])
 def set_album_master(album_id):
     from master_year_sync import fetch_master_year

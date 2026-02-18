@@ -445,15 +445,17 @@ Talking Heads,Remain in Light,1980,x</code></pre>
                     <div class="detail-meta-col">
                         <h3 class="detail-artist" id="detail-artist"></h3>
                         <h4 class="detail-title" id="detail-title"></h4>
-                        <p class="detail-year" id="detail-year"></p>
+                        <p class="detail-year" id="detail-year-original"></p>
+                        <p class="detail-year detail-year-version" id="detail-year-version"></p>
                         <p class="detail-format" id="detail-format"></p>
                         <div class="detail-tags" id="detail-genres"></div>
                         <div class="detail-tags detail-tags-styles" id="detail-styles"></div>
                         <div class="detail-rank hidden" id="detail-rank"></div>
                         <div class="detail-stats">
-                            <span class="detail-stat" id="detail-played"></span>
+                            <a class="detail-stat detail-stat-link" id="detail-played" href="#"></a>
                             <span class="detail-stat" id="detail-skipped"></span>
                         </div>
+                        <div class="detail-play-dates hidden" id="detail-play-dates"></div>
                         <div class="detail-links">
                             <span class="detail-link-row">
                                 <a class="detail-link" id="detail-discogs-link" href="#" target="_blank" rel="noopener">Discogs Release</a>
@@ -523,6 +525,7 @@ Talking Heads,Remain in Light,1980,x</code></pre>
 
     <!-- Footer -->
     <footer class="site-footer">
+        <img class="footer-stamp" src="{{ url_for('static', filename='Otter_stamp.png') }}" alt="Otter stamp">
         <p class="footer-tagline">From your friendly neighborhood record obsessive at <a href="https://palmaradio.substack.com" target="_blank" rel="noopener">Public Diplomacy Records</a></p>
         <p class="footer-credit">Created by <a href="https://palmaradio.substack.com" target="_blank" rel="noopener">M. Palma</a> · <a href="#" id="btn-help" class="footer-help-link">Help &amp; Setup</a></p>
     </footer>

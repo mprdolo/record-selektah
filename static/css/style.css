@@ -1206,6 +1206,48 @@ body {
     font-weight: 500;
 }
 
+.detail-stat-link {
+    text-decoration: none;
+    cursor: default;
+}
+
+.detail-stat-link.has-plays {
+    cursor: pointer;
+    border-bottom: 1px dashed var(--charcoal-light);
+    transition: all var(--transition);
+}
+
+.detail-stat-link.has-plays:hover {
+    color: var(--green);
+    border-bottom-color: var(--green);
+}
+
+.detail-play-dates {
+    background: var(--cream);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+.play-date-item {
+    font-size: 0.78rem;
+    color: var(--charcoal-light);
+    padding: 3px 0;
+    border-bottom: 1px solid var(--cream-dark);
+}
+
+.play-date-item:last-child {
+    border-bottom: none;
+}
+
+.detail-year-version {
+    color: var(--charcoal-light);
+    font-weight: 500;
+    font-size: 0.8rem;
+}
+
 .detail-links {
     display: flex;
     flex-direction: column;
@@ -1991,6 +2033,19 @@ body {
     padding: 32px 20px 24px;
     border-top: 1px solid var(--cream-dark);
     margin-top: 16px;
+}
+
+.footer-stamp {
+    width: 60px;
+    height: auto;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    opacity: 0.85;
+    transition: opacity var(--transition);
+}
+
+.footer-stamp:hover {
+    opacity: 1;
 }
 
 .footer-tagline {

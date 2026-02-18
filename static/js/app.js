@@ -877,7 +877,8 @@
     const detailCover = $('#detail-cover');
     const detailArtist = $('#detail-artist');
     const detailTitle = $('#detail-title');
-    const detailYear = $('#detail-year');
+    const detailYearOriginal = $('#detail-year-original');
+    const detailYearVersion = $('#detail-year-version');
     const detailFormat = $('#detail-format');
     const detailGenres = $('#detail-genres');
     const detailStyles = $('#detail-styles');
@@ -956,11 +957,21 @@
         detailArtist.textContent = a.artist;
         detailTitle.textContent = a.title;
 
-        const yearParts = [];
-        if (a.display_year) yearParts.push(a.display_year);
-        if (a.release_year && a.release_year !== a.display_year) yearParts.push(`Release: ${a.release_year}`);
-        if (a.master_year && a.master_year !== a.display_year) yearParts.push(`Master: ${a.master_year}`);
-        detailYear.textContent = yearParts.join(' \u00B7 ');
+        // Year lines
+        if (a.master_year) {
+            detailYearOriginal.textContent = `Original Release Year: ${a.master_year}`;
+            detailYearOriginal.classList.remove('hidden');
+        } else {
+            detailYearOriginal.textContent = '';
+            detailYearOriginal.classList.add('hidden');
+        }
+        if (a.release_year) {
+            detailYearVersion.textContent = `Your Version Release Year: ${a.release_year}`;
+            detailYearVersion.classList.remove('hidden');
+        } else {
+            detailYearVersion.textContent = '';
+            detailYearVersion.classList.add('hidden');
+        }
 
         detailFormat.textContent = a.format || '';
 
@@ -991,7 +1002,16 @@
         }
 
         // Stats
+        const playDates = $('#detail-play-dates');
+        playDates.classList.add('hidden');
+        playDates.innerHTML = '';
         detailPlayed.textContent = `Played: ${a.times_played}`;
+        if (a.times_played > 0) {
+            detailPlayed.classList.add('has-plays');
+            detailPlayed.dataset.albumId = a.album_id;
+        } else {
+            detailPlayed.classList.remove('has-plays');
+        }
         detailSkipped.textContent = `Skipped: ${a.times_skipped}`;
 
         // Discogs release link
@@ -1118,6 +1138,29 @@
             btnSaveRelease.disabled = false;
         }
     }
+
+    // Play dates toggle
+    detailPlayed.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (!detailPlayed.classList.contains('has-plays')) return;
+        const playDates = $('#detail-play-dates');
+        if (!playDates.classList.contains('hidden')) {
+            playDates.classList.add('hidden');
+            return;
+        }
+        const albumId = detailPlayed.dataset.albumId;
+        try {
+            const resp = await api(`/api/album/${albumId}/play-dates`);
+            const dates = resp.data.dates;
+            playDates.innerHTML = dates.map(d => {
+                const date = new Date(d + 'Z');
+                return `<div class="play-date-item">${date.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</div>`;
+            }).join('');
+            playDates.classList.remove('hidden');
+        } catch (err) {
+            showToast('Failed to load play dates', 'error');
+        }
+    });
 
     // Detail card events
     btnDetailClose.addEventListener('click', closeDetailCard);
