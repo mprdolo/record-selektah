@@ -4,7 +4,7 @@ A personal vinyl listening companion that connects to your [Discogs](https://www
 
 Inspired by reggae sound system DJs ("selektahs") of the 1960s-70s.
 
-<!-- ![Record Selektah screenshot](screenshot.png) -->
+![Record Selektah screenshot](static/screenshot.png)
 
 ## Features
 
