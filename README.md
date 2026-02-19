@@ -72,7 +72,11 @@ The Big Board is your personal album ranking -- any list of albums ranked by pre
 
 ### CSV Format
 
-Create a CSV file with 4 columns and place it at `data/big_board.csv`:
+Create a CSV file with 4 columns and place it at `data/big_board.csv`. A sample file is included at `data/big_board_sample.csv` to show the expected format -- copy and edit it to get started:
+
+```bash
+cp data/big_board_sample.csv data/big_board.csv
+```
 
 ```csv
 Artist,Title,Year,Owned
