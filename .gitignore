@@ -4,6 +4,9 @@
 # Database
 data/recordselektah.db
 
+# Personal Big Board (sample is tracked)
+data/big_board.csv
+
 # Python
 __pycache__/
 *.py[cod]
