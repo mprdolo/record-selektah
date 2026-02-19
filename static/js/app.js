@@ -1738,12 +1738,34 @@
                 ? `<img class="lstats-cover" src="${escapeAttr(album.cover_image_url)}" alt="" onerror="this.style.visibility='hidden'">`
                 : `<div class="lstats-cover"></div>`;
 
+            const genres = album.genres && album.genres.length ? album.genres.join(', ') : '';
+            const rankHtml = album.big_board_rank
+                ? `<span class="lstats-bb-rank">#${album.big_board_rank}</span>`
+                : '';
+
+            const lastDate = album.last_listened
+                ? new Date(album.last_listened + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                : '';
+            const firstDate = album.first_listened
+                ? new Date(album.first_listened + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                : '';
+
             el.innerHTML = `
                 <div class="lstats-rank">${idx + 1}</div>
                 ${coverHtml}
                 <div class="lstats-info">
                     <div class="lstats-artist">${esc(album.artist)}</div>
                     <div class="lstats-album">${esc(album.title)}${album.display_year ? ' (' + album.display_year + ')' : ''}</div>
+                    <div class="lstats-meta">
+                        ${genres ? esc(genres) : ''}
+                        ${rankHtml}
+                    </div>
+                </div>
+                <div class="lstats-details">
+                    <div class="lstats-dates">
+                        ${firstDate ? `<span class="lstats-date-item">First: ${esc(firstDate)}</span>` : ''}
+                        ${lastDate ? `<span class="lstats-date-item">Last: ${esc(lastDate)}</span>` : ''}
+                    </div>
                 </div>
                 <div class="lstats-plays">
                     ${album.listen_count}

@@ -1843,9 +1843,9 @@ body {
 }
 
 .lstats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .lstats-card {
@@ -1924,6 +1924,44 @@ body {
     font-weight: 500;
     color: var(--charcoal-light);
     display: block;
+}
+
+.lstats-meta {
+    font-size: 0.72rem;
+    color: var(--charcoal-light);
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.lstats-bb-rank {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 100px;
+    background: rgba(212, 168, 67, 0.15);
+    color: var(--gold);
+    white-space: nowrap;
+}
+
+.lstats-details {
+    flex-shrink: 0;
+    text-align: right;
+    margin-left: auto;
+}
+
+.lstats-dates {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.lstats-date-item {
+    font-size: 0.72rem;
+    color: var(--charcoal-light);
+    white-space: nowrap;
 }
 
 /* ---- Help Section ---- */
@@ -2213,8 +2251,8 @@ body {
         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     }
 
-    .lstats-grid {
-        grid-template-columns: 1fr;
+    .lstats-details {
+        display: none;
     }
 }
 

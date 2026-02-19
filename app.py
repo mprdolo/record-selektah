@@ -440,6 +440,7 @@ def listening_stats():
             """SELECT a.id, a.artist, a.title, a.release_year, a.master_year,
                       a.big_board_year, a.cover_image_url, a.genres, a.big_board_rank,
                       COUNT(l.id) as listen_count,
+                      MIN(l.selected_at) as first_listened,
                       MAX(l.selected_at) as last_listened
                FROM albums a
                JOIN listens l ON l.album_id = a.id AND l.did_listen = 1
@@ -462,6 +463,7 @@ def listening_stats():
                 "genres": genres,
                 "big_board_rank": row["big_board_rank"],
                 "listen_count": row["listen_count"],
+                "first_listened": row["first_listened"],
                 "last_listened": row["last_listened"],
             })
 
