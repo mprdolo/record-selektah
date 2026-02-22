@@ -88,6 +88,7 @@ def init_db():
     # Migrations — add columns that may not exist yet
     migrations = [
         ("albums", "master_id_override", "ALTER TABLE albums ADD COLUMN master_id_override INTEGER"),
+        ("albums", "master_year_override", "ALTER TABLE albums ADD COLUMN master_year_override INTEGER"),
     ]
     for table, column, sql in migrations:
         try:

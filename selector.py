@@ -6,7 +6,7 @@ from db import get_db_connection
 
 def get_display_year(album):
     """Return the best available year for display, per spec priority."""
-    return album["big_board_year"] or album["master_year"] or album["release_year"]
+    return album["master_year_override"] or album["big_board_year"] or album["master_year"] or album["release_year"]
 
 
 def get_eligible_albums(conn):
@@ -14,8 +14,8 @@ def get_eligible_albums(conn):
     cursor = conn.cursor()
     cursor.execute(
         """SELECT id, artist, title, release_year, master_year, big_board_year,
-                  cover_image_url, genres, styles, format, big_board_rank,
-                  discogs_url, master_url
+                  master_year_override, cover_image_url, genres, styles, format,
+                  big_board_rank, discogs_url, master_url
            FROM albums
            WHERE is_excluded = 0 AND is_removed = 0"""
     )
@@ -46,7 +46,8 @@ def get_recent_selections(conn, n=10):
     """Get the last n selected albums with their metadata."""
     cursor = conn.cursor()
     cursor.execute(
-        """SELECT a.artist, a.genres, a.big_board_year, a.master_year, a.release_year
+        """SELECT a.artist, a.genres, a.big_board_year, a.master_year, a.release_year,
+                  a.master_year_override
            FROM listens l
            JOIN albums a ON l.album_id = a.id
            ORDER BY l.selected_at DESC
@@ -78,7 +79,7 @@ def calculate_weights(conn):
     recent_artists = set()
 
     for r in recent:
-        year = r["big_board_year"] or r["master_year"] or r["release_year"]
+        year = r["master_year_override"] or r["big_board_year"] or r["master_year"] or r["release_year"]
         if year:
             recent_decades.add((year // 10) * 10)
         genres = json.loads(r["genres"]) if r["genres"] else []
@@ -195,6 +196,7 @@ def select_next_album():
             "display_year": display_year,
             "release_year": selected["release_year"],
             "master_year": selected["master_year"],
+            "master_year_override": selected["master_year_override"],
             "cover_image_url": selected["cover_image_url"],
             "genres": genres,
             "styles": styles,

@@ -904,6 +904,12 @@
     const btnSaveRelease = $('#btn-save-release');
     const btnCancelRelease = $('#btn-cancel-release');
 
+    // Year override refs
+    const detailYearEdit = $('#detail-year-edit');
+    const inputYearOverride = $('#input-year-override');
+    const btnSaveYear = $('#btn-save-year');
+    const btnCancelYear = $('#btn-cancel-year');
+
     let detailAlbumId = null;
     let detailCardDirty = false;
 
@@ -912,8 +918,10 @@
         detailCardDirty = false;
         detailMasterEdit.classList.add('hidden');
         detailReleaseEdit.classList.add('hidden');
+        detailYearEdit.classList.add('hidden');
         inputMasterId.value = '';
         inputReleaseId.value = '';
+        inputYearOverride.value = '';
 
         try {
             const resp = await api(`/api/album/${albumId}`);
@@ -958,12 +966,30 @@
         detailTitle.textContent = a.title;
 
         // Year lines
-        if (a.master_year) {
-            detailYearOriginal.textContent = `Original Release Year: ${a.master_year}`;
+        const yearText = $('#detail-year-original-text');
+        const noYear = $('#detail-no-year');
+        const btnEditYear = $('#btn-edit-year');
+        const btnRemoveYear = $('#btn-remove-year');
+        $('#detail-year-edit').classList.add('hidden');
+
+        if (a.master_year_override) {
+            yearText.textContent = `Original Release Year: ${a.master_year_override} (manual)`;
             detailYearOriginal.classList.remove('hidden');
+            btnEditYear.style.display = '';
+            noYear.classList.add('hidden');
+            btnRemoveYear.classList.remove('hidden');
+        } else if (a.master_year) {
+            yearText.textContent = `Original Release Year: ${a.master_year}`;
+            detailYearOriginal.classList.remove('hidden');
+            btnEditYear.style.display = '';
+            noYear.classList.add('hidden');
+            btnRemoveYear.classList.add('hidden');
         } else {
-            detailYearOriginal.textContent = '';
+            yearText.textContent = '';
             detailYearOriginal.classList.add('hidden');
+            btnEditYear.style.display = 'none';
+            noYear.classList.remove('hidden');
+            btnRemoveYear.classList.add('hidden');
         }
         if (a.release_year) {
             detailYearVersion.textContent = `Your Version Release Year: ${a.release_year}`;
@@ -1139,6 +1165,63 @@
         }
     }
 
+    // --- Year Override ---
+
+    function showYearEditForm() {
+        detailYearEdit.classList.remove('hidden');
+        detailMasterEdit.classList.add('hidden');
+        detailReleaseEdit.classList.add('hidden');
+        inputYearOverride.focus();
+    }
+
+    function hideYearEditForm() {
+        detailYearEdit.classList.add('hidden');
+        inputYearOverride.value = '';
+    }
+
+    async function saveYearOverride() {
+        const val = inputYearOverride.value.trim();
+        if (!val) {
+            showToast('Enter a year', 'error');
+            return;
+        }
+        const year = parseInt(val, 10);
+        if (isNaN(year) || year < 1900 || year > 2099) {
+            showToast('Year must be between 1900 and 2099', 'error');
+            return;
+        }
+        btnSaveYear.disabled = true;
+        try {
+            await api(`/api/album/${detailAlbumId}/year`, 'POST', { year: year });
+            showToast('Original release year updated');
+            detailCardDirty = true;
+            hideYearEditForm();
+            const resp = await api(`/api/album/${detailAlbumId}`);
+            populateDetailCard(resp.data);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            btnSaveYear.disabled = false;
+        }
+    }
+
+    async function removeYearOverride() {
+        const btnRemoveYear = $('#btn-remove-year');
+        btnRemoveYear.disabled = true;
+        try {
+            await api(`/api/album/${detailAlbumId}/year`, 'POST', { year: null });
+            showToast('Year override removed');
+            detailCardDirty = true;
+            hideYearEditForm();
+            const resp = await api(`/api/album/${detailAlbumId}`);
+            populateDetailCard(resp.data);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            btnRemoveYear.disabled = false;
+        }
+    }
+
     // Play dates toggle
     detailPlayed.addEventListener('click', async (e) => {
         e.preventDefault();
@@ -1178,6 +1261,15 @@
     btnEditRelease.addEventListener('click', showReleaseEditForm);
     btnSaveRelease.addEventListener('click', saveReleaseOverride);
     btnCancelRelease.addEventListener('click', hideReleaseEditForm);
+    $('#btn-edit-year').addEventListener('click', () => {
+        detailMasterEdit.classList.add('hidden');
+        detailReleaseEdit.classList.add('hidden');
+        showYearEditForm();
+    });
+    $('#btn-set-year').addEventListener('click', showYearEditForm);
+    btnSaveYear.addEventListener('click', saveYearOverride);
+    btnCancelYear.addEventListener('click', hideYearEditForm);
+    $('#btn-remove-year').addEventListener('click', removeYearOverride);
 
     // Click album cover on main page to open detail card
     albumCover.addEventListener('click', () => {

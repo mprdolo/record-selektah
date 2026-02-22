@@ -66,8 +66,8 @@ def previous_album():
 
         cursor.execute(
             """SELECT id, artist, title, release_year, master_year, big_board_year,
-                      cover_image_url, genres, styles, format, big_board_rank,
-                      discogs_url, master_url
+                      master_year_override, cover_image_url, genres, styles, format,
+                      big_board_rank, discogs_url, master_url
                FROM albums WHERE id = ?""",
             (listen["album_id"],),
         )
@@ -75,7 +75,7 @@ def previous_album():
         if not album:
             return api_response(False, message="Album not found.", status_code=404)
 
-        display_year = album["big_board_year"] or album["master_year"] or album["release_year"]
+        display_year = album["master_year_override"] or album["big_board_year"] or album["master_year"] or album["release_year"]
         genres = json.loads(album["genres"]) if album["genres"] else []
         styles = json.loads(album["styles"]) if album["styles"] else []
 
@@ -203,7 +203,8 @@ def listening_history():
         cursor.execute(
             """SELECT l.id, l.album_id, l.selected_at, l.did_listen, l.skipped,
                       a.artist, a.title, a.release_year, a.master_year,
-                      a.big_board_year, a.cover_image_url, a.genres, a.big_board_rank
+                      a.big_board_year, a.master_year_override, a.cover_image_url,
+                      a.genres, a.big_board_rank
                FROM listens l
                JOIN albums a ON l.album_id = a.id
                WHERE l.did_listen = 1 OR l.skipped = 1
@@ -215,7 +216,7 @@ def listening_history():
 
         history = []
         for row in rows:
-            display_year = row["big_board_year"] or row["master_year"] or row["release_year"]
+            display_year = row["master_year_override"] or row["big_board_year"] or row["master_year"] or row["release_year"]
             genres = json.loads(row["genres"]) if row["genres"] else []
             history.append({
                 "listen_id": row["id"],
@@ -308,7 +309,7 @@ def bigboard():
         cursor.execute(
             """SELECT id, big_board_rank, artist, title,
                       big_board_year, master_year, release_year,
-                      cover_image_url, genres
+                      master_year_override, cover_image_url, genres
                FROM albums
                WHERE big_board_rank IS NOT NULL AND is_removed = 0
                ORDER BY big_board_rank"""
@@ -317,7 +318,7 @@ def bigboard():
 
         entries = []
         for row in rows:
-            display_year = row["big_board_year"] or row["master_year"] or row["release_year"]
+            display_year = row["master_year_override"] or row["big_board_year"] or row["master_year"] or row["release_year"]
             genres = json.loads(row["genres"]) if row["genres"] else []
             entries.append({
                 "rank": row["big_board_rank"],
@@ -374,7 +375,7 @@ def library():
         cursor = conn.cursor()
         cursor.execute(
             """SELECT id, artist, title, release_year, master_year, big_board_year,
-                      cover_image_url, genres, format, big_board_rank
+                      master_year_override, cover_image_url, genres, format, big_board_rank
                FROM albums WHERE is_removed = 0
                ORDER BY artist, title"""
         )
@@ -382,7 +383,7 @@ def library():
 
         albums = []
         for row in rows:
-            display_year = row["big_board_year"] or row["master_year"] or row["release_year"]
+            display_year = row["master_year_override"] or row["big_board_year"] or row["master_year"] or row["release_year"]
             genres = json.loads(row["genres"]) if row["genres"] else []
             albums.append({
                 "album_id": row["id"],
@@ -438,8 +439,8 @@ def listening_stats():
         cursor = conn.cursor()
         cursor.execute(
             """SELECT a.id, a.artist, a.title, a.release_year, a.master_year,
-                      a.big_board_year, a.cover_image_url, a.genres, a.big_board_rank,
-                      COUNT(l.id) as listen_count,
+                      a.big_board_year, a.master_year_override, a.cover_image_url,
+                      a.genres, a.big_board_rank, COUNT(l.id) as listen_count,
                       MIN(l.selected_at) as first_listened,
                       MAX(l.selected_at) as last_listened
                FROM albums a
@@ -452,7 +453,7 @@ def listening_stats():
 
         albums = []
         for row in rows:
-            display_year = row["big_board_year"] or row["master_year"] or row["release_year"]
+            display_year = row["master_year_override"] or row["big_board_year"] or row["master_year"] or row["release_year"]
             genres = json.loads(row["genres"]) if row["genres"] else []
             albums.append({
                 "album_id": row["id"],
@@ -479,7 +480,7 @@ def excluded_albums():
         cursor = conn.cursor()
         cursor.execute(
             """SELECT id, artist, title, release_year, master_year, big_board_year,
-                      cover_image_url, genres, format, big_board_rank
+                      master_year_override, cover_image_url, genres, format, big_board_rank
                FROM albums WHERE is_excluded = 1 AND is_removed = 0
                ORDER BY artist, title"""
         )
@@ -487,7 +488,7 @@ def excluded_albums():
 
         albums = []
         for row in rows:
-            display_year = row["big_board_year"] or row["master_year"] or row["release_year"]
+            display_year = row["master_year_override"] or row["big_board_year"] or row["master_year"] or row["release_year"]
             genres = json.loads(row["genres"]) if row["genres"] else []
             albums.append({
                 "album_id": row["id"],
@@ -514,8 +515,9 @@ def album_detail(album_id):
         cursor = conn.cursor()
         cursor.execute(
             """SELECT id, artist, title, release_year, master_year, big_board_year,
-                      cover_image_url, genres, styles, format, big_board_rank,
-                      discogs_url, master_url, discogs_master_id, master_id_override
+                      master_year_override, cover_image_url, genres, styles, format,
+                      big_board_rank, discogs_url, master_url, discogs_master_id,
+                      master_id_override
                FROM albums WHERE id = ?""",
             (album_id,),
         )
@@ -523,7 +525,7 @@ def album_detail(album_id):
         if not album:
             return api_response(False, message="Album not found.", status_code=404)
 
-        display_year = album["big_board_year"] or album["master_year"] or album["release_year"]
+        display_year = album["master_year_override"] or album["big_board_year"] or album["master_year"] or album["release_year"]
         genres = json.loads(album["genres"]) if album["genres"] else []
         styles = json.loads(album["styles"]) if album["styles"] else []
 
@@ -556,6 +558,7 @@ def album_detail(album_id):
             "master_url": album["master_url"],
             "discogs_master_id": album["discogs_master_id"],
             "master_id_override": album["master_id_override"],
+            "master_year_override": album["master_year_override"],
             "times_played": times_played,
             "times_skipped": times_skipped,
         })
@@ -640,6 +643,40 @@ def set_album_master(album_id):
         conn.close()
 
 
+@app.route("/api/album/<int:album_id>/year", methods=["POST"])
+def set_album_year(album_id):
+    body = request.get_json(silent=True) or {}
+    year = body.get("year")
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM albums WHERE id = ?", (album_id,))
+        if not cursor.fetchone():
+            return api_response(False, message="Album not found.", status_code=404)
+
+        if year is None:
+            cursor.execute(
+                "UPDATE albums SET master_year_override = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (album_id,),
+            )
+        else:
+            year = int(year)
+            if year < 1900 or year > 2099:
+                return api_response(False, message="Year must be between 1900 and 2099.", status_code=400)
+            cursor.execute(
+                "UPDATE albums SET master_year_override = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (year, album_id),
+            )
+
+        conn.commit()
+        return api_response(message="Original release year updated.")
+    except ValueError:
+        return api_response(False, message="Invalid year.", status_code=400)
+    finally:
+        conn.close()
+
+
 @app.route("/api/album/<int:album_id>/release", methods=["POST"])
 def set_album_release(album_id):
     body = request.get_json(silent=True) or {}
@@ -702,7 +739,7 @@ def search_albums():
         like = f"%{q}%"
         cursor.execute(
             """SELECT id, artist, title, release_year, master_year, big_board_year,
-                      cover_image_url, genres, big_board_rank
+                      master_year_override, cover_image_url, genres, big_board_rank
                FROM albums
                WHERE is_removed = 0
                  AND (artist LIKE ? OR title LIKE ?)
@@ -714,7 +751,7 @@ def search_albums():
 
         results = []
         for row in rows:
-            display_year = row["big_board_year"] or row["master_year"] or row["release_year"]
+            display_year = row["master_year_override"] or row["big_board_year"] or row["master_year"] or row["release_year"]
             genres = json.loads(row["genres"]) if row["genres"] else []
             results.append({
                 "album_id": row["id"],

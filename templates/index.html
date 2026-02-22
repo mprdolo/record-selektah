@@ -445,7 +445,23 @@ Talking Heads,Remain in Light,1980,x</code></pre>
                     <div class="detail-meta-col">
                         <h3 class="detail-artist" id="detail-artist"></h3>
                         <h4 class="detail-title" id="detail-title"></h4>
-                        <p class="detail-year" id="detail-year-original"></p>
+                        <p class="detail-year" id="detail-year-original">
+                            <span id="detail-year-original-text"></span>
+                            <button class="btn-icon btn-edit-year" id="btn-edit-year" title="Edit original release year">&#9998;</button>
+                        </p>
+                        <span class="detail-no-master hidden" id="detail-no-year">
+                            No original release year
+                            <button class="btn-icon btn-set-master" id="btn-set-year" title="Set original release year">+ Set</button>
+                        </span>
+                        <div class="detail-year-edit hidden" id="detail-year-edit">
+                            <input type="number" class="input-master" id="input-year-override"
+                                   placeholder="Year (e.g. 1985)" min="1900" max="2099">
+                            <div class="detail-master-buttons">
+                                <button class="btn btn-sm btn-save-master" id="btn-save-year">Save</button>
+                                <button class="btn btn-sm btn-cancel-master" id="btn-cancel-year">Cancel</button>
+                                <button class="btn btn-sm btn-remove-master hidden" id="btn-remove-year">Remove</button>
+                            </div>
+                        </div>
                         <p class="detail-year detail-year-version" id="detail-year-version"></p>
                         <p class="detail-format" id="detail-format"></p>
                         <div class="detail-tags" id="detail-genres"></div>

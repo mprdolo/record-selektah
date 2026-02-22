@@ -2111,6 +2111,21 @@ body {
     color: var(--charcoal-light);
 }
 
+/* ---- Year Edit Form ---- */
+
+.detail-year-edit {
+    margin-top: 8px;
+    padding: 10px;
+    background: var(--cream);
+    border-radius: var(--radius);
+    margin-bottom: 4px;
+}
+
+.btn-edit-year {
+    font-size: 0.8rem;
+    vertical-align: middle;
+}
+
 /* ---- Release Edit Form ---- */
 
 .detail-release-edit {
