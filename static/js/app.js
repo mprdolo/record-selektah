@@ -1468,7 +1468,7 @@
         const isYearSort = librarySort === 'master_year' || librarySort === 'release_year';
         if (isYearSort) {
             const year = librarySort === 'master_year'
-                ? (album.master_year || album.release_year)
+                ? album.display_year
                 : album.release_year;
             return year ? Math.floor(year / 10) * 10 + 's' : 'Unknown';
         } else if (librarySort === 'title') {
@@ -1626,7 +1626,7 @@
             const yearsInDecade = new Set();
             groupAlbums.forEach(album => {
                 const year = librarySort === 'master_year'
-                    ? (album.master_year || album.release_year)
+                    ? album.display_year
                     : album.release_year;
                 if (year && Math.floor(year / 10) * 10 === decadeStart) {
                     yearsInDecade.add(year);
@@ -1669,7 +1669,7 @@
         const groupAlbums = decadeLabel && groups[decadeLabel] ? groups[decadeLabel] : libraryData;
         const filtered = applyLibrarySearch(groupAlbums.filter(album => {
             const albumYear = librarySort === 'master_year'
-                ? (album.master_year || album.release_year)
+                ? album.display_year
                 : album.release_year;
             return albumYear === year;
         }));

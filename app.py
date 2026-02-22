@@ -406,7 +406,7 @@ def library():
             albums.sort(key=lambda a: _strip_article(a["title"]).lower(), reverse=reverse)
         elif sort == "master_year":
             albums.sort(
-                key=lambda a: (a["master_year"] or a["release_year"] or 0, a["artist"].lower()),
+                key=lambda a: (a["display_year"] or 0, a["artist"].lower()),
                 reverse=reverse,
             )
         elif sort == "release_year":
