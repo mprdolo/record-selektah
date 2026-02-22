@@ -54,13 +54,21 @@ Inspired by reggae sound system DJs ("selektahs") of the 1960s-70s.
 
    Generate a personal access token at [discogs.com/settings/developers](https://www.discogs.com/settings/developers).
 
-5. Run the app:
+5. Create a desktop shortcut (Windows):
+
+   ```bash
+   python install.py
+   ```
+
+   This creates a "Record Selektah" shortcut on your desktop that launches the app without a console window and opens your browser automatically.
+
+   Alternatively, run the app directly:
 
    ```bash
    python app.py
    ```
 
-   Open `http://localhost:3345` in your browser.
+   Then open `http://localhost:3345` in your browser.
 
 ## Syncing Your Collection
 
