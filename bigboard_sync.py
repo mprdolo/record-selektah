@@ -127,7 +127,7 @@ def sync_big_board(csv_path=None, progress_callback=None):
     albums = cursor.fetchall()
 
     # Snapshot existing entries so we can preserve manual edits and matches
-    cursor.execute("SELECT rank, artist, title, year, album_id FROM big_board_entries")
+    cursor.execute("SELECT rank, artist, title, year, album_id, via_album_id FROM big_board_entries")
     old_entries = {row["rank"]: dict(row) for row in cursor.fetchall()}
 
     # Clear existing Big Board entries so re-imports are clean
@@ -165,6 +165,7 @@ def sync_big_board(csv_path=None, progress_callback=None):
         # Determine album_id: preserve existing manual match, otherwise
         # try fuzzy matching
         album_id = None
+        via_album_id = old["via_album_id"] if old else None
         if old and old["album_id"] is not None:
             # Preserve the existing association (manual or auto)
             album_id = old["album_id"]
@@ -190,9 +191,9 @@ def sync_big_board(csv_path=None, progress_callback=None):
                 })
 
         cursor.execute(
-            """INSERT INTO big_board_entries (rank, artist, title, year, album_id)
-               VALUES (?, ?, ?, ?, ?)""",
-            (entry["rank"], final_artist, final_title, final_year, album_id),
+            """INSERT INTO big_board_entries (rank, artist, title, year, album_id, via_album_id)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (entry["rank"], final_artist, final_title, final_year, album_id, via_album_id),
         )
 
         if progress_callback and (i + 1) % 50 == 0:

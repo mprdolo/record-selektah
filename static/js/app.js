@@ -770,8 +770,15 @@
             ? `<img class="bb-cover" src="${escapeAttr(entry.cover_image_url)}" alt="" onerror="this.style.visibility='hidden'">`
             : `<div class="bb-cover-placeholder">?</div>`;
 
-        const badgeHtml = entry.owned
-            ? '<span class="bb-owned-badge">Owned</span>'
+        let badgeHtml = '';
+        if (entry.via_album_id && entry.via_album_title) {
+            badgeHtml = `<span class="bb-via-badge" title="via ${escapeAttr(entry.via_album_artist + ' \u2014 ' + entry.via_album_title)}">via ${esc(entry.via_album_title)}</span>`;
+        } else if (entry.owned) {
+            badgeHtml = '<span class="bb-owned-badge">Owned</span>';
+        }
+
+        const viaSubtitle = (entry.via_album_id && entry.via_album_title && !entry.album_id)
+            ? `<div class="bb-via-subtitle">via ${esc(entry.via_album_title)}</div>`
             : '';
 
         el.innerHTML = `
@@ -781,13 +788,16 @@
                 <div class="bb-artist">${esc(entry.artist)}</div>
                 <div class="bb-album">${esc(entry.title)}</div>
                 ${entry.year ? `<div class="bb-year">${entry.year}</div>` : ''}
+                ${viaSubtitle}
             </div>
             ${badgeHtml}
         `;
 
         if (entry.album_id) {
+            // Direct match — open detail for the matched album
             el.addEventListener('click', () => openDetailCard(entry.album_id));
         } else {
+            // Unowned or via-owned — open match modal to manage links
             el.addEventListener('click', () => openMatchModal(entry));
         }
 
@@ -1401,6 +1411,25 @@
     btnCancelYear.addEventListener('click', hideYearEditForm);
     $('#btn-remove-year').addEventListener('click', removeYearOverride);
 
+    // Use Release as Master — re-fetch cover from Discogs release
+    $('#btn-use-release-as-master').addEventListener('click', async () => {
+        const btn = $('#btn-use-release-as-master');
+        btn.disabled = true;
+        btn.textContent = '...';
+        try {
+            await api(`/api/album/${detailAlbumId}/use-release-as-master`, 'POST');
+            showToast('Cover refreshed from release');
+            detailCardDirty = true;
+            const resp = await api(`/api/album/${detailAlbumId}`);
+            populateDetailCard(resp.data);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Use Release as Master';
+        }
+    });
+
     // Click album cover on main page to open detail card
     albumCover.addEventListener('click', () => {
         if (currentAlbum && currentAlbum.album_id) {
@@ -1473,6 +1502,29 @@
         matchEditYear.value = entry.year || '';
         matchSearchInput.value = entry.artist.split(',')[0].trim();
         matchResults.innerHTML = '';
+
+        // Via section state
+        const viaCurrent = $('#match-via-current');
+        const viaBody = $('#match-via-body');
+        const viaToggle = $('#match-via-toggle');
+        const viaResults = $('#via-search-results');
+        const viaSearchInput = $('#via-search-input');
+
+        viaBody.classList.add('hidden');
+        viaToggle.classList.remove('open');
+        viaResults.innerHTML = '';
+        viaSearchInput.value = '';
+
+        // Show existing via link if present
+        const viaNameLink = $('#match-via-name');
+        if (entry.via_album_id && entry.via_album_title) {
+            viaNameLink.textContent = `${entry.via_album_artist} \u2014 ${entry.via_album_title}`;
+            viaNameLink.dataset.viaAlbumId = entry.via_album_id;
+            viaCurrent.classList.remove('hidden');
+        } else {
+            viaCurrent.classList.add('hidden');
+        }
+
         openModal(matchModal);
         // Auto-search with the artist name
         searchForMatch();
@@ -1611,6 +1663,144 @@
     btnMatchClose.addEventListener('click', closeMatchModal);
     matchModal.addEventListener('click', (e) => {
         if (e.target === matchModal) closeMatchModal();
+    });
+
+    // --- Via Album (owned through another album) ---
+
+    const viaToggleBtn = $('#match-via-toggle');
+    const viaBody = $('#match-via-body');
+    const viaSearchInput = $('#via-search-input');
+    const btnViaSearch = $('#btn-via-search');
+    const viaResults = $('#via-search-results');
+    const viaCurrent = $('#match-via-current');
+    const btnViaRemove = $('#btn-via-remove');
+
+    viaToggleBtn.addEventListener('click', () => {
+        viaBody.classList.toggle('hidden');
+        viaToggleBtn.classList.toggle('open');
+    });
+
+    // Click via album name to open its detail card
+    $('#match-via-name').addEventListener('click', (e) => {
+        e.preventDefault();
+        const viaAlbumId = e.currentTarget.dataset.viaAlbumId;
+        if (viaAlbumId) {
+            openDetailCard(parseInt(viaAlbumId, 10));
+        }
+    });
+
+    async function searchVia() {
+        const q = viaSearchInput.value.trim();
+        if (q.length < 2) {
+            viaResults.innerHTML = '<p class="match-empty">Type at least 2 characters.</p>';
+            return;
+        }
+        viaResults.innerHTML = '<p class="match-empty">Searching...</p>';
+        try {
+            const resp = await api(`/api/albums/search?q=${encodeURIComponent(q)}`);
+            const albums = resp.data;
+            if (albums.length === 0) {
+                viaResults.innerHTML = '<p class="match-empty">No albums found.</p>';
+                return;
+            }
+            viaResults.innerHTML = '';
+            albums.forEach(album => {
+                const item = document.createElement('div');
+                item.className = 'match-result-item';
+                const yearStr = album.display_year ? ` (${album.display_year})` : '';
+                item.innerHTML = `
+                    <img class="match-result-cover" src="${escapeAttr(album.cover_image_url || '')}" alt=""
+                         onerror="this.style.visibility='hidden'">
+                    <div class="match-result-info">
+                        <div class="match-result-name">${esc(album.artist)} — ${esc(album.title)}</div>
+                        <div class="match-result-sub">${esc(yearStr)}</div>
+                    </div>
+                    <button class="btn-match-link">Link Via</button>
+                `;
+                item.querySelector('.btn-match-link').addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const btn = e.currentTarget;
+                    btn.disabled = true;
+                    btn.textContent = '...';
+                    try {
+                        await api(`/api/bigboard/entry/${matchEntry.rank}/via`, 'POST', {
+                            album_id: album.album_id,
+                        });
+                        showToast(`Linked via "${album.artist} \u2014 ${album.title}"`);
+                        matchModalDirty = true;
+
+                        // Update local data
+                        matchEntry.via_album_id = album.album_id;
+                        matchEntry.via_album_artist = album.artist;
+                        matchEntry.via_album_title = album.title;
+                        const idx = bigboardData.findIndex(e => e.rank === matchEntry.rank);
+                        if (idx !== -1) {
+                            bigboardData[idx].via_album_id = album.album_id;
+                            bigboardData[idx].via_album_artist = album.artist;
+                            bigboardData[idx].via_album_title = album.title;
+                            bigboardData[idx].owned = true;
+                            bigboardData[idx].cover_image_url = album.cover_image_url;
+                            bigboardData[idx].genres = album.genres;
+                        }
+
+                        // Show the via link in the modal instead of closing
+                        const viaNameLink = $('#match-via-name');
+                        viaNameLink.textContent = `${album.artist} \u2014 ${album.title}`;
+                        viaNameLink.dataset.viaAlbumId = album.album_id;
+                        $('#match-via-current').classList.remove('hidden');
+
+                        // Collapse the via search section
+                        viaBody.classList.add('hidden');
+                        viaToggleBtn.classList.remove('open');
+                    } catch (err) {
+                        showToast(err.message, 'error');
+                        btn.disabled = false;
+                        btn.textContent = 'Link Via';
+                    }
+                });
+                viaResults.appendChild(item);
+            });
+        } catch (err) {
+            viaResults.innerHTML = '<p class="match-empty">Search failed.</p>';
+        }
+    }
+
+    btnViaSearch.addEventListener('click', searchVia);
+    viaSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') searchVia();
+    });
+
+    btnViaRemove.addEventListener('click', async () => {
+        if (!matchEntry) return;
+        btnViaRemove.disabled = true;
+        try {
+            await api(`/api/bigboard/entry/${matchEntry.rank}/via`, 'POST', {
+                album_id: null,
+            });
+            showToast('Via link removed');
+            matchModalDirty = true;
+
+            matchEntry.via_album_id = null;
+            matchEntry.via_album_artist = null;
+            matchEntry.via_album_title = null;
+            const idx = bigboardData.findIndex(e => e.rank === matchEntry.rank);
+            if (idx !== -1) {
+                bigboardData[idx].via_album_id = null;
+                bigboardData[idx].via_album_artist = null;
+                bigboardData[idx].via_album_title = null;
+                bigboardData[idx].owned = !!bigboardData[idx].album_id;
+                if (!bigboardData[idx].album_id) {
+                    bigboardData[idx].cover_image_url = null;
+                    bigboardData[idx].genres = [];
+                }
+            }
+
+            viaCurrent.classList.add('hidden');
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            btnViaRemove.disabled = false;
+        }
     });
 
     // --- The Library ---

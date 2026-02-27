@@ -309,31 +309,47 @@ def bigboard():
     try:
         cursor = conn.cursor()
 
-        # Single query: all Big Board entries LEFT JOIN albums
+        # Single query: all Big Board entries LEFT JOIN direct album + via album
         cursor.execute(
             """SELECT bb.rank, bb.artist, bb.title, bb.year,
-                      bb.album_id, a.id AS joined_album_id,
-                      a.cover_image_url, a.genres
+                      bb.album_id, bb.via_album_id,
+                      a.id AS joined_album_id,
+                      a.cover_image_url, a.genres,
+                      va.id AS via_joined_id,
+                      va.cover_image_url AS via_cover_image_url,
+                      va.genres AS via_genres,
+                      va.artist AS via_album_artist,
+                      va.title AS via_album_title
                FROM big_board_entries bb
                LEFT JOIN albums a ON a.id = bb.album_id AND a.is_removed = 0
+               LEFT JOIN albums va ON va.id = bb.via_album_id AND va.is_removed = 0
                ORDER BY bb.rank"""
         )
         rows = cursor.fetchall()
 
         entries = []
         for row in rows:
-            owned = row["joined_album_id"] is not None
-            genres = json.loads(row["genres"]) if row["genres"] else []
-            entries.append({
+            direct = row["joined_album_id"] is not None
+            via = row["via_joined_id"] is not None
+            owned = direct or via
+            # Prefer direct match, fall back to via
+            cover = row["cover_image_url"] if direct else (row["via_cover_image_url"] if via else None)
+            raw_genres = row["genres"] if direct else (row["via_genres"] if via else None)
+            genres = json.loads(raw_genres) if raw_genres else []
+            entry = {
                 "rank": row["rank"],
                 "artist": row["artist"],
                 "title": row["title"],
                 "year": row["year"],
-                "cover_image_url": row["cover_image_url"] if owned else None,
+                "cover_image_url": cover if owned else None,
                 "genres": genres if owned else [],
                 "owned": owned,
-                "album_id": row["album_id"] if owned else None,
-            })
+                "album_id": row["album_id"] if direct else None,
+                "via_album_id": row["via_album_id"] if via else None,
+                "via_album_artist": row["via_album_artist"] if via else None,
+                "via_album_title": row["via_album_title"] if via else None,
+            }
+            entries.append(entry)
 
         return api_response(data=entries)
     finally:
@@ -717,6 +733,41 @@ def set_album_release(album_id):
         conn.close()
 
 
+@app.route("/api/album/<int:album_id>/use-release-as-master", methods=["POST"])
+def use_release_as_master(album_id):
+    """Re-fetch cover from the album's Discogs release and apply it as the primary image."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, discogs_release_id FROM albums WHERE id = ?",
+            (album_id,),
+        )
+        album = cursor.fetchone()
+        if not album:
+            return api_response(False, message="Album not found.", status_code=404)
+
+        release_id = album["discogs_release_id"]
+        if not release_id:
+            return api_response(False, message="Album has no Discogs release ID.", status_code=400)
+
+        release_data = _fetch_release_data(release_id)
+        cover_image_url = release_data.get("cover_image_url")
+        if not cover_image_url:
+            return api_response(False, message="No cover image found on release.", status_code=404)
+
+        cursor.execute(
+            "UPDATE albums SET cover_image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (cover_image_url, album_id),
+        )
+        conn.commit()
+        return api_response(message="Cover image refreshed from release.")
+    except Exception as e:
+        return api_response(False, message=str(e), status_code=500)
+    finally:
+        conn.close()
+
+
 @app.route("/api/albums/search")
 def search_albums():
     """Search owned albums by artist/title for manual Big Board matching."""
@@ -876,6 +927,44 @@ def unmatch_bigboard():
 
         conn.commit()
         return api_response(message="Big Board rank removed.")
+    except ValueError:
+        return api_response(False, message="Invalid album_id.", status_code=400)
+    finally:
+        conn.close()
+
+
+@app.route("/api/bigboard/entry/<int:rank>/via", methods=["POST"])
+def set_bigboard_via(rank):
+    """Set or clear via_album_id on a Big Board entry."""
+    body = request.get_json(silent=True) or {}
+    album_id = body.get("album_id")
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+
+        # Check entry exists
+        cursor.execute("SELECT id FROM big_board_entries WHERE rank = ?", (rank,))
+        if not cursor.fetchone():
+            return api_response(False, message="Big Board entry not found.", status_code=404)
+
+        if album_id is not None:
+            album_id = int(album_id)
+            # Check album exists
+            cursor.execute("SELECT id FROM albums WHERE id = ?", (album_id,))
+            if not cursor.fetchone():
+                return api_response(False, message="Album not found.", status_code=404)
+
+        cursor.execute(
+            "UPDATE big_board_entries SET via_album_id = ? WHERE rank = ?",
+            (album_id, rank),
+        )
+        conn.commit()
+
+        if album_id:
+            return api_response(message=f"Via album linked to Big Board rank #{rank}.")
+        else:
+            return api_response(message=f"Via album removed from Big Board rank #{rank}.")
     except ValueError:
         return api_response(False, message="Invalid album_id.", status_code=400)
     finally:

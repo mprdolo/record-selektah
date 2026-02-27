@@ -498,6 +498,7 @@ Talking Heads,Remain in Light,1980,x</code></pre>
                             <span class="detail-no-master hidden" id="detail-no-master">
                                 No master release
                                 <button class="btn-icon btn-set-master" id="btn-set-master" title="Set master release">+ Set</button>
+                                <button class="btn-icon btn-set-master" id="btn-use-release-as-master" title="Refresh cover from Discogs release">Use Release as Master</button>
                             </span>
                         </div>
                         <div class="detail-release-edit hidden" id="detail-release-edit">
@@ -546,6 +547,31 @@ Talking Heads,Remain in Light,1980,x</code></pre>
                     <button class="btn btn-sm btn-save-master" id="btn-match-search">Search</button>
                 </div>
                 <div class="match-results" id="match-results"></div>
+
+                <!-- Existing via link display -->
+                <div class="match-via-current hidden" id="match-via-current">
+                    <span class="match-via-label">Owned via:</span>
+                    <a class="match-via-name" id="match-via-name" href="#"></a>
+                    <button class="btn-via-remove" id="btn-via-remove" title="Remove via link">&times;</button>
+                </div>
+
+                <!-- Owned via collapsible section -->
+                <div class="match-via-section">
+                    <button class="match-via-toggle" id="match-via-toggle">
+                        <svg class="match-via-chevron" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polyline points="6 8 10 12 14 8"/>
+                        </svg>
+                        I own this as part of another album
+                    </button>
+                    <div class="match-via-body hidden" id="match-via-body">
+                        <div class="match-via-search">
+                            <input type="text" class="input-master" id="via-search-input"
+                                   placeholder="Search for box set, compilation...">
+                            <button class="btn btn-sm btn-save-master" id="btn-via-search">Search</button>
+                        </div>
+                        <div class="match-via-results" id="via-search-results"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

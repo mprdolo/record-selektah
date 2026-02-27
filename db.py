@@ -104,6 +104,7 @@ def init_db():
     migrations = [
         ("albums", "master_id_override", "ALTER TABLE albums ADD COLUMN master_id_override INTEGER"),
         ("albums", "master_year_override", "ALTER TABLE albums ADD COLUMN master_year_override INTEGER"),
+        ("big_board_entries", "via_album_id", "ALTER TABLE big_board_entries ADD COLUMN via_album_id INTEGER"),
     ]
     for table, column, sql in migrations:
         try:

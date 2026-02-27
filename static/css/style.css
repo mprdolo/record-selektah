@@ -1681,6 +1681,139 @@ body {
     font-size: 0.9rem;
 }
 
+/* ---- Via Album Badge (Big Board cards) ---- */
+
+.bb-via-badge {
+    flex-shrink: 0;
+    font-size: 0.6rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 100px;
+    background: rgba(212, 168, 67, 0.15);
+    color: var(--gold);
+    max-width: 100px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bb-via-subtitle {
+    font-size: 0.65rem;
+    color: var(--gold);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ---- Match Modal: Via Section ---- */
+
+.match-via-current {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(212, 168, 67, 0.1);
+    border-radius: var(--radius);
+    margin-top: 12px;
+    margin-bottom: 4px;
+}
+
+.match-via-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--gold);
+    flex-shrink: 0;
+}
+
+.match-via-name {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--charcoal);
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-decoration: none;
+    border-bottom: 1px dashed var(--charcoal-light);
+    cursor: pointer;
+    transition: color var(--transition);
+}
+
+.match-via-name:hover {
+    color: var(--green);
+    border-bottom-color: var(--green);
+}
+
+.btn-via-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    color: var(--charcoal-light);
+    padding: 0 4px;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: color var(--transition);
+}
+
+.btn-via-remove:hover {
+    color: #c0392b;
+}
+
+.match-via-section {
+    margin-top: 16px;
+    border-top: 1px solid var(--cream-dark);
+    padding-top: 12px;
+}
+
+.match-via-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--charcoal-light);
+    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: color var(--transition);
+}
+
+.match-via-toggle:hover {
+    color: var(--charcoal);
+}
+
+.match-via-chevron {
+    transition: transform var(--transition);
+}
+
+.match-via-toggle.open .match-via-chevron {
+    transform: rotate(180deg);
+}
+
+.match-via-body {
+    margin-top: 10px;
+}
+
+.match-via-search {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.match-via-search .input-master {
+    flex: 1;
+}
+
+.match-via-results {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
 /* ---- The Library ---- */
 
 .library-section {
