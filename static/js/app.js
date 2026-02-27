@@ -649,6 +649,17 @@
         }
     }
 
+    function refreshBigBoardBehindModal() {
+        if (bigboardSection.classList.contains('hidden')) return;
+        const scrollY = window.scrollY;
+        // Re-fetch and re-render without the "Loading..." flash
+        api('/api/bigboard').then(resp => {
+            bigboardData = resp.data;
+            renderBigBoard();
+            requestAnimationFrame(() => window.scrollTo(0, scrollY));
+        }).catch(() => {});
+    }
+
     function getFilteredData() {
         let data = bigboardData;
         if (bigboardFilter === 'owned') data = data.filter(e => e.owned);
@@ -971,12 +982,8 @@
             loadHistory(true);
 
             // Refresh the visible section with scroll preservation
-            if (!bigboardSection.classList.contains('hidden')) {
-                bigboardData = [];
-                loadBigBoard().then(() => {
-                    requestAnimationFrame(() => window.scrollTo(0, scrollY));
-                });
-            } else if (!librarySection.classList.contains('hidden')) {
+            // (Big Board is refreshed live behind the modal, so skip it here)
+            if (!librarySection.classList.contains('hidden')) {
                 loadLibrary().then(() => {
                     requestAnimationFrame(() => window.scrollTo(0, scrollY));
                 });
@@ -1140,6 +1147,7 @@
             await api(`/api/album/${detailAlbumId}/master`, 'POST', { master_id: masterId });
             showToast('Master release updated');
             detailCardDirty = true;
+            refreshBigBoardBehindModal();
             hideMasterEditForm();
             // Refresh card
             const resp = await api(`/api/album/${detailAlbumId}`);
@@ -1157,6 +1165,7 @@
             await api(`/api/album/${detailAlbumId}/master`, 'POST', { master_id: null });
             showToast('Master release removed');
             detailCardDirty = true;
+            refreshBigBoardBehindModal();
             hideMasterEditForm();
             const resp = await api(`/api/album/${detailAlbumId}`);
             populateDetailCard(resp.data);
@@ -1227,6 +1236,7 @@
                         });
                         showToast(`Reassociated Big Board #${detailAlbumRank}`);
                         detailCardDirty = true;
+                        refreshBigBoardBehindModal();
                         const resp2 = await api(`/api/album/${detailAlbumId}`);
                         populateDetailCard(resp2.data);
                     } catch (err) {
@@ -1253,8 +1263,8 @@
             await api('/api/bigboard/unmatch', 'POST', { album_id: detailAlbumId });
             showToast('Big Board rank removed — marked as not owned');
             detailCardDirty = true;
-            const resp = await api(`/api/album/${detailAlbumId}`);
-            populateDetailCard(resp.data);
+            refreshBigBoardBehindModal();
+            closeDetailCard();
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
@@ -1295,6 +1305,7 @@
             await api(`/api/album/${detailAlbumId}/release`, 'POST', { release_id: releaseId });
             showToast('Discogs release updated');
             detailCardDirty = true;
+            refreshBigBoardBehindModal();
             hideReleaseEditForm();
             const resp = await api(`/api/album/${detailAlbumId}`);
             populateDetailCard(resp.data);
@@ -1335,6 +1346,7 @@
             await api(`/api/album/${detailAlbumId}/year`, 'POST', { year: year });
             showToast('Original release year updated');
             detailCardDirty = true;
+            refreshBigBoardBehindModal();
             hideYearEditForm();
             const resp = await api(`/api/album/${detailAlbumId}`);
             populateDetailCard(resp.data);
@@ -1352,6 +1364,7 @@
             await api(`/api/album/${detailAlbumId}/year`, 'POST', { year: null });
             showToast('Year override removed');
             detailCardDirty = true;
+            refreshBigBoardBehindModal();
             hideYearEditForm();
             const resp = await api(`/api/album/${detailAlbumId}`);
             populateDetailCard(resp.data);
@@ -1420,6 +1433,7 @@
             await api(`/api/album/${detailAlbumId}/use-release-as-master`, 'POST');
             showToast('Cover refreshed from release');
             detailCardDirty = true;
+            refreshBigBoardBehindModal();
             const resp = await api(`/api/album/${detailAlbumId}`);
             populateDetailCard(resp.data);
         } catch (err) {
@@ -1532,13 +1546,6 @@
 
     function closeMatchModal() {
         closeModal(matchModal);
-        if (matchModalDirty) {
-            const scrollY = window.scrollY;
-            bigboardData = [];
-            loadBigBoard().then(() => {
-                requestAnimationFrame(() => window.scrollTo(0, scrollY));
-            });
-        }
         matchEntry = null;
         matchModalDirty = false;
     }
@@ -1563,6 +1570,7 @@
             await api(`/api/bigboard/entry/${matchEntry.rank}`, 'PUT', body);
             showToast('Entry updated');
             matchModalDirty = true;
+            refreshBigBoardBehindModal();
 
             // Update local entry + header display
             matchEntry.artist = artist;
@@ -1638,6 +1646,7 @@
                         });
                         showToast(`Matched to Big Board #${matchEntry.rank}`);
                         matchModalDirty = true;
+                        refreshBigBoardBehindModal();
                         closeMatchModal();
                     } catch (err) {
                         showToast(err.message, 'error');
@@ -1728,6 +1737,7 @@
                         });
                         showToast(`Linked via "${album.artist} \u2014 ${album.title}"`);
                         matchModalDirty = true;
+                        refreshBigBoardBehindModal();
 
                         // Update local data
                         matchEntry.via_album_id = album.album_id;
@@ -1779,6 +1789,7 @@
             });
             showToast('Via link removed');
             matchModalDirty = true;
+            refreshBigBoardBehindModal();
 
             matchEntry.via_album_id = null;
             matchEntry.via_album_artist = null;
