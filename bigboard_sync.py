@@ -126,6 +126,10 @@ def sync_big_board(csv_path=None, progress_callback=None):
     )
     albums = cursor.fetchall()
 
+    # Snapshot existing entries so we can preserve manual edits and matches
+    cursor.execute("SELECT rank, artist, title, year, album_id FROM big_board_entries")
+    old_entries = {row["rank"]: dict(row) for row in cursor.fetchall()}
+
     # Clear existing Big Board entries so re-imports are clean
     cursor.execute("DELETE FROM big_board_entries")
 
@@ -137,31 +141,58 @@ def sync_big_board(csv_path=None, progress_callback=None):
         progress_callback(f"Matching {total} Big Board entries...", 0, total)
 
     for i, entry in enumerate(entries):
-        best_match, score = find_best_match(entry, albums)
+        old = old_entries.get(entry["rank"])
 
+        # Preserve manual field edits: if the old entry's field differs from
+        # what the CSV originally had (i.e. user edited it), keep the edited
+        # value. We detect this by checking if the old value differs from the
+        # new CSV value — if it does and an album_id was set or the text
+        # changed, the user likely edited it manually.
+        final_artist = entry["artist"]
+        final_title = entry["title"]
+        final_year = entry["year"]
+
+        if old:
+            # If the old entry had a different artist/title/year than what
+            # the CSV says now, the user edited it — preserve the edit
+            if old["artist"] != entry["artist"]:
+                final_artist = old["artist"]
+            if old["title"] != entry["title"]:
+                final_title = old["title"]
+            if old["year"] != entry["year"]:
+                final_year = old["year"]
+
+        # Determine album_id: preserve existing manual match, otherwise
+        # try fuzzy matching
         album_id = None
-        if best_match and score >= MATCH_THRESHOLD:
-            album_id = best_match["id"]
+        if old and old["album_id"] is not None:
+            # Preserve the existing association (manual or auto)
+            album_id = old["album_id"]
             matched += 1
         else:
-            unmatched.append({
-                "rank": entry["rank"],
-                "artist": entry["artist"],
-                "title": entry["title"],
-                "year": entry["year"],
-                "owned": entry["owned"],
-                "best_match_score": round(score) if best_match else 0,
-                "best_match": (
-                    f"{best_match['artist']} — {best_match['title']}"
-                    if best_match
-                    else None
-                ),
-            })
+            best_match, score = find_best_match(entry, albums)
+            if best_match and score >= MATCH_THRESHOLD:
+                album_id = best_match["id"]
+                matched += 1
+            else:
+                unmatched.append({
+                    "rank": entry["rank"],
+                    "artist": entry["artist"],
+                    "title": entry["title"],
+                    "year": entry["year"],
+                    "owned": entry["owned"],
+                    "best_match_score": round(score) if best_match else 0,
+                    "best_match": (
+                        f"{best_match['artist']} — {best_match['title']}"
+                        if best_match
+                        else None
+                    ),
+                })
 
         cursor.execute(
             """INSERT INTO big_board_entries (rank, artist, title, year, album_id)
                VALUES (?, ?, ?, ?, ?)""",
-            (entry["rank"], entry["artist"], entry["title"], entry["year"], album_id),
+            (entry["rank"], final_artist, final_title, final_year, album_id),
         )
 
         if progress_callback and (i + 1) % 50 == 0:
