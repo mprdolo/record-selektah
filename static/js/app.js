@@ -1122,7 +1122,7 @@
         const raw = inputMasterId.value;
         const masterId = parseMasterId(raw);
         if (masterId === null) {
-            showToast('Invalid master ID or URL', 'error');
+            showToast('Enter a Discogs master release URL or ID. No master? Use "Remove" and set the year manually.', 'error');
             return;
         }
         btnSaveMaster.disabled = true;
