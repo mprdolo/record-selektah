@@ -884,7 +884,6 @@
     const detailStyles = $('#detail-styles');
     const detailRank = $('#detail-rank');
     const detailRankText = $('#detail-rank-text');
-    const btnRemoveRank = $('#btn-remove-rank');
     const detailPlayed = $('#detail-played');
     const detailSkipped = $('#detail-skipped');
     const detailDiscogsLink = $('#detail-discogs-link');
@@ -913,14 +912,18 @@
     const btnCancelYear = $('#btn-cancel-year');
 
     let detailAlbumId = null;
+    let detailAlbumRank = null;
     let detailCardDirty = false;
 
     async function openDetailCard(albumId) {
         detailAlbumId = albumId;
+        detailAlbumRank = null;
         detailCardDirty = false;
         detailMasterEdit.classList.add('hidden');
         detailReleaseEdit.classList.add('hidden');
         detailYearEdit.classList.add('hidden');
+        $('#reassoc-panel').classList.add('hidden');
+        $('#reassoc-results').innerHTML = '';
         inputMasterId.value = '';
         inputReleaseId.value = '';
         inputYearOverride.value = '';
@@ -1045,13 +1048,18 @@
         });
 
         // Rank
+        const reassocWrap = $('#detail-reassoc-wrap');
         if (a.big_board_rank) {
+            detailAlbumRank = a.big_board_rank;
             detailRankText.textContent = 'Big Board #' + a.big_board_rank;
             detailRank.classList.remove('hidden');
-            btnRemoveRank.classList.remove('hidden');
+            reassocWrap.classList.remove('hidden');
+            $('#reassoc-panel').classList.add('hidden');
+            $('#reassoc-results').innerHTML = '';
         } else {
+            detailAlbumRank = null;
             detailRank.classList.add('hidden');
-            btnRemoveRank.classList.add('hidden');
+            reassocWrap.classList.add('hidden');
         }
 
         // Stats
@@ -1149,22 +1157,100 @@
         }
     }
 
-    // --- Big Board Rank Remove ---
+    // --- Big Board Rank Reassociation ---
 
-    async function removeBigBoardRank() {
-        btnRemoveRank.disabled = true;
+    const btnReassoc = $('#btn-reassoc');
+    const reassocPanel = $('#reassoc-panel');
+    const reassocSearchInput = $('#reassoc-search-input');
+    const btnReassocSearch = $('#btn-reassoc-search');
+    const reassocResults = $('#reassoc-results');
+    const btnReassocUnown = $('#btn-reassoc-unown');
+
+    btnReassoc.addEventListener('click', () => {
+        reassocPanel.classList.toggle('hidden');
+        if (!reassocPanel.classList.contains('hidden')) {
+            reassocSearchInput.value = '';
+            reassocResults.innerHTML = '';
+            reassocSearchInput.focus();
+        }
+    });
+
+    async function searchReassoc() {
+        const q = reassocSearchInput.value.trim();
+        if (q.length < 2) {
+            reassocResults.innerHTML = '<p class="match-empty">Type at least 2 characters.</p>';
+            return;
+        }
+        reassocResults.innerHTML = '<p class="match-empty">Searching...</p>';
+        try {
+            const resp = await api(`/api/albums/search?q=${encodeURIComponent(q)}`);
+            const albums = resp.data;
+            if (albums.length === 0) {
+                reassocResults.innerHTML = '<p class="match-empty">No albums found.</p>';
+                return;
+            }
+            reassocResults.innerHTML = '';
+            albums.forEach(album => {
+                // Skip the currently associated album
+                if (album.album_id === detailAlbumId) return;
+                const item = document.createElement('div');
+                item.className = 'reassoc-result-item';
+                const yearStr = album.display_year ? ` (${album.display_year})` : '';
+                item.innerHTML = `
+                    <img class="reassoc-result-cover" src="${escapeAttr(album.cover_image_url || '')}" alt=""
+                         onerror="this.style.visibility='hidden'">
+                    <div class="reassoc-result-info">
+                        <div class="reassoc-result-name">${esc(album.artist)} — ${esc(album.title)}</div>
+                        <div class="reassoc-result-sub">${esc(yearStr)}</div>
+                    </div>
+                    <button class="btn-reassoc-link">Link</button>
+                `;
+                item.querySelector('.btn-reassoc-link').addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const btn = e.currentTarget;
+                    btn.disabled = true;
+                    btn.textContent = '...';
+                    try {
+                        await api('/api/bigboard/match', 'POST', {
+                            album_id: album.album_id,
+                            rank: detailAlbumRank,
+                        });
+                        showToast(`Reassociated Big Board #${detailAlbumRank}`);
+                        detailCardDirty = true;
+                        const resp2 = await api(`/api/album/${detailAlbumId}`);
+                        populateDetailCard(resp2.data);
+                    } catch (err) {
+                        showToast(err.message, 'error');
+                        btn.disabled = false;
+                        btn.textContent = 'Link';
+                    }
+                });
+                reassocResults.appendChild(item);
+            });
+        } catch (err) {
+            reassocResults.innerHTML = '<p class="match-empty">Search failed.</p>';
+        }
+    }
+
+    btnReassocSearch.addEventListener('click', searchReassoc);
+    reassocSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') searchReassoc();
+    });
+
+    btnReassocUnown.addEventListener('click', async () => {
+        btnReassocUnown.disabled = true;
         try {
             await api('/api/bigboard/unmatch', 'POST', { album_id: detailAlbumId });
-            showToast('Big Board rank removed');
+            showToast('Big Board rank removed — marked as not owned');
             detailCardDirty = true;
             const resp = await api(`/api/album/${detailAlbumId}`);
             populateDetailCard(resp.data);
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
-            btnRemoveRank.disabled = false;
+            btnReassocUnown.disabled = false;
         }
-    }
+    });
 
     // --- Release Edit ---
 
@@ -1302,7 +1388,6 @@
     btnSaveMaster.addEventListener('click', saveMasterOverride);
     btnCancelMaster.addEventListener('click', hideMasterEditForm);
     btnRemoveMaster.addEventListener('click', removeMasterOverride);
-    btnRemoveRank.addEventListener('click', removeBigBoardRank);
     btnEditRelease.addEventListener('click', showReleaseEditForm);
     btnSaveRelease.addEventListener('click', saveReleaseOverride);
     btnCancelRelease.addEventListener('click', hideReleaseEditForm);

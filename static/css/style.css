@@ -1194,6 +1194,130 @@ body {
     margin-bottom: 10px;
 }
 
+.detail-reassoc {
+    margin-bottom: 10px;
+}
+
+.btn-reassoc-trigger {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 0.7rem;
+    color: var(--charcoal-light);
+    padding: 0;
+    text-decoration: underline;
+    text-decoration-style: dashed;
+    text-underline-offset: 2px;
+    transition: color var(--transition);
+}
+
+.btn-reassoc-trigger:hover {
+    color: #c0392b;
+}
+
+.reassoc-panel {
+    margin-top: 8px;
+    padding: 10px;
+    background: var(--cream);
+    border-radius: var(--radius);
+}
+
+.reassoc-search {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.reassoc-search .input-master {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.reassoc-results {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 8px;
+}
+
+.reassoc-result-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background var(--transition);
+    font-size: 0.82rem;
+}
+
+.reassoc-result-item:hover {
+    background: var(--cream-dark);
+}
+
+.reassoc-result-cover {
+    width: 32px;
+    height: 32px;
+    object-fit: cover;
+    border-radius: 3px;
+    flex-shrink: 0;
+    background: var(--cream-dark);
+}
+
+.reassoc-result-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.reassoc-result-name {
+    font-weight: 600;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.reassoc-result-sub {
+    font-size: 0.72rem;
+    color: var(--charcoal-light);
+}
+
+.btn-reassoc-link {
+    padding: 4px 10px;
+    font-size: 0.72rem;
+    border-radius: var(--radius);
+    font-family: var(--font);
+    font-weight: 600;
+    background: var(--green);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.btn-reassoc-link:hover:not(:disabled) {
+    background: var(--green-dark);
+}
+
+.btn-reassoc-unown {
+    background: none;
+    border: 1px solid var(--charcoal-light);
+    border-radius: var(--radius);
+    padding: 5px 12px;
+    font-family: var(--font);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--charcoal-light);
+    cursor: pointer;
+    width: 100%;
+    transition: all var(--transition);
+}
+
+.btn-reassoc-unown:hover {
+    border-color: #c0392b;
+    color: #c0392b;
+}
+
 .detail-stats {
     display: flex;
     gap: 16px;

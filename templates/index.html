@@ -468,7 +468,18 @@ Talking Heads,Remain in Light,1980,x</code></pre>
                         <div class="detail-tags detail-tags-styles" id="detail-styles"></div>
                         <div class="detail-rank hidden" id="detail-rank">
                             <span id="detail-rank-text"></span>
-                            <button class="btn btn-sm btn-remove-master hidden" id="btn-remove-rank">Remove</button>
+                        </div>
+                        <div class="detail-reassoc hidden" id="detail-reassoc-wrap">
+                            <button class="btn-reassoc-trigger" id="btn-reassoc">Incorrect album association</button>
+                            <div class="reassoc-panel hidden" id="reassoc-panel">
+                                <div class="reassoc-search">
+                                    <input type="text" class="input-master" id="reassoc-search-input"
+                                           placeholder="Search for correct album...">
+                                    <button class="btn btn-sm btn-save-master" id="btn-reassoc-search">Search</button>
+                                </div>
+                                <div class="reassoc-results" id="reassoc-results"></div>
+                                <button class="btn-reassoc-unown" id="btn-reassoc-unown">I don't own this album</button>
+                            </div>
                         </div>
                         <div class="detail-stats">
                             <a class="detail-stat detail-stat-link" id="detail-played" href="#"></a>
