@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut\\(''C:\\\\Users\\\\mpard\\\\OneDrive\\\\Desktop\\\\Record Selektah.lnk''\\); $s.TargetPath = ''C:\\\\Users\\\\mpard\\\\OneDrive\\\\Desktop\\\\Record Selektah.bat''; $s.WorkingDirectory = ''C:\\\\Users\\\\mpard\\\\Documents\\\\ClaudeProjects\\\\record-selektah''; $s.IconLocation = ''C:\\\\Users\\\\mpard\\\\Documents\\\\ClaudeProjects\\\\record-selektah\\\\record-selektah.ico,0''; $s.Description = ''Launch Record Selektah''; $s.Save\\(\\)\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\mpard\\\\Documents\\\\ClaudeProjects\\\\record-selektah\\\\create-shortcut.ps1\")",
+      "Bash(powershell -Command \"ie4uinit.exe -show\")",
+      "Bash(python:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(curl:*)",
+      "Bash(taskkill:*)"
+    ]
+  }
+}

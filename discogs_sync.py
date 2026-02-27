@@ -142,13 +142,12 @@ def sync_collection(progress_callback=None):
                     has_override = override_row and override_row["master_id_override"]
 
                     if has_override:
-                        # Skip master_id and master_url — user overrode them
+                        # Skip master_id, master_url, AND cover_image_url — user overrode master
                         cursor.execute(
                             """UPDATE albums SET
                                 artist = ?,
                                 title = ?,
                                 release_year = ?,
-                                cover_image_url = ?,
                                 genres = ?,
                                 styles = ?,
                                 format = ?,
@@ -160,7 +159,6 @@ def sync_collection(progress_callback=None):
                                 release["artist"],
                                 release["title"],
                                 release["release_year"],
-                                release["cover_image_url"],
                                 release["genres"],
                                 release["styles"],
                                 release["format"],
