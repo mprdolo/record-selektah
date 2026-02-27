@@ -226,6 +226,13 @@ def sync_big_board(csv_path=None, progress_callback=None):
 
 
 if __name__ == "__main__":
+    import sys
+    import io
+
+    # Ensure stdout can handle Unicode on Windows
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
     def print_progress(msg, current, total):
         print(msg)
 
@@ -242,6 +249,6 @@ if __name__ == "__main__":
             for u in results["unmatched"]:
                 owned_tag = " [OWNED]" if u["owned"] else ""
                 best = f" (closest: {u['best_match']}, score={u['best_match_score']})" if u["best_match"] else ""
-                print(f"  #{u['rank']:3d}: {u['artist']} — {u['title']} ({u['year']}){owned_tag}{best}")
+                print(f"  #{u['rank']:3d}: {u['artist']} \u2014 {u['title']} ({u['year']}){owned_tag}{best}")
     except Exception as e:
         print(f"\nImport failed: {e}")
