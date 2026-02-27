@@ -1021,10 +1021,12 @@
 
         // Rank
         if (a.big_board_rank) {
-            detailRank.textContent = 'Big Board #' + a.big_board_rank;
+            detailRankText.textContent = 'Big Board #' + a.big_board_rank;
             detailRank.classList.remove('hidden');
+            btnRemoveRank.classList.remove('hidden');
         } else {
             detailRank.classList.add('hidden');
+            btnRemoveRank.classList.add('hidden');
         }
 
         // Stats
@@ -1119,6 +1121,23 @@
             showToast(err.message, 'error');
         } finally {
             btnRemoveMaster.disabled = false;
+        }
+    }
+
+    // --- Big Board Rank Remove ---
+
+    async function removeBigBoardRank() {
+        btnRemoveRank.disabled = true;
+        try {
+            await api('/api/bigboard/unmatch', 'POST', { album_id: detailAlbumId });
+            showToast('Big Board rank removed');
+            detailCardDirty = true;
+            const resp = await api(`/api/album/${detailAlbumId}`);
+            populateDetailCard(resp.data);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            btnRemoveRank.disabled = false;
         }
     }
 
@@ -1258,6 +1277,7 @@
     btnSaveMaster.addEventListener('click', saveMasterOverride);
     btnCancelMaster.addEventListener('click', hideMasterEditForm);
     btnRemoveMaster.addEventListener('click', removeMasterOverride);
+    btnRemoveRank.addEventListener('click', removeBigBoardRank);
     btnEditRelease.addEventListener('click', showReleaseEditForm);
     btnSaveRelease.addEventListener('click', saveReleaseOverride);
     btnCancelRelease.addEventListener('click', hideReleaseEditForm);

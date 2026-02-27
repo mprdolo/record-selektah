@@ -823,6 +823,27 @@ def match_bigboard():
         conn.close()
 
 
+@app.route("/api/bigboard/unmatch", methods=["POST"])
+def unmatch_bigboard():
+    body = request.get_json(silent=True) or {}
+    album_id = body.get("album_id")
+    if not album_id:
+        return api_response(False, message="album_id is required.", status_code=400)
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE albums SET big_board_rank = NULL, big_board_year = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (int(album_id),),
+        )
+        conn.commit()
+        return api_response(message="Big Board rank removed.")
+    except ValueError:
+        return api_response(False, message="Invalid album_id.", status_code=400)
+    finally:
+        conn.close()
+
+
 def _fetch_master_data(master_id):
     """Fetch year and cover image from Discogs master release."""
     import requests
