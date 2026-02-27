@@ -13,11 +13,13 @@ def get_eligible_albums(conn):
     """Load all albums eligible for selection (not excluded, not removed)."""
     cursor = conn.cursor()
     cursor.execute(
-        """SELECT id, artist, title, release_year, master_year, big_board_year,
-                  master_year_override, cover_image_url, genres, styles, format,
-                  big_board_rank, discogs_url, master_url
-           FROM albums
-           WHERE is_excluded = 0 AND is_removed = 0"""
+        """SELECT a.id, a.artist, a.title, a.release_year, a.master_year,
+                  a.master_year_override, a.cover_image_url, a.genres, a.styles,
+                  a.format, a.discogs_url, a.master_url,
+                  bb.rank AS big_board_rank, bb.year AS big_board_year
+           FROM albums a
+           LEFT JOIN big_board_entries bb ON bb.album_id = a.id
+           WHERE a.is_excluded = 0 AND a.is_removed = 0"""
     )
     return cursor.fetchall()
 
@@ -46,10 +48,11 @@ def get_recent_selections(conn, n=10):
     """Get the last n selected albums with their metadata."""
     cursor = conn.cursor()
     cursor.execute(
-        """SELECT a.artist, a.genres, a.big_board_year, a.master_year, a.release_year,
-                  a.master_year_override
+        """SELECT a.artist, a.genres, a.master_year, a.release_year,
+                  a.master_year_override, bb.year AS big_board_year
            FROM listens l
            JOIN albums a ON l.album_id = a.id
+           LEFT JOIN big_board_entries bb ON bb.album_id = a.id
            ORDER BY l.selected_at DESC
            LIMIT ?""",
         (n,),

@@ -883,6 +883,8 @@
     const detailGenres = $('#detail-genres');
     const detailStyles = $('#detail-styles');
     const detailRank = $('#detail-rank');
+    const detailRankText = $('#detail-rank-text');
+    const btnRemoveRank = $('#btn-remove-rank');
     const detailPlayed = $('#detail-played');
     const detailSkipped = $('#detail-skipped');
     const detailDiscogsLink = $('#detail-discogs-link');
@@ -1408,7 +1410,6 @@
                         await api('/api/bigboard/match', 'POST', {
                             album_id: album.album_id,
                             rank: matchEntry.rank,
-                            year: matchEntry.year,
                         });
                         showToast(`Matched to Big Board #${matchEntry.rank}`);
                         closeMatchModal();

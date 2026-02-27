@@ -126,11 +126,8 @@ def sync_big_board(csv_path=None, progress_callback=None):
     )
     albums = cursor.fetchall()
 
-    # Clear existing Big Board data so re-imports are clean
-    cursor.execute(
-        "UPDATE albums SET big_board_rank = NULL, big_board_year = NULL, updated_at = CURRENT_TIMESTAMP "
-        "WHERE big_board_rank IS NOT NULL"
-    )
+    # Clear existing Big Board entries so re-imports are clean
+    cursor.execute("DELETE FROM big_board_entries")
 
     matched = 0
     unmatched = []
@@ -142,15 +139,9 @@ def sync_big_board(csv_path=None, progress_callback=None):
     for i, entry in enumerate(entries):
         best_match, score = find_best_match(entry, albums)
 
+        album_id = None
         if best_match and score >= MATCH_THRESHOLD:
-            cursor.execute(
-                """UPDATE albums SET
-                    big_board_rank = ?,
-                    big_board_year = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?""",
-                (entry["rank"], entry["year"], best_match["id"]),
-            )
+            album_id = best_match["id"]
             matched += 1
         else:
             unmatched.append({
@@ -167,15 +158,20 @@ def sync_big_board(csv_path=None, progress_callback=None):
                 ),
             })
 
+        cursor.execute(
+            """INSERT INTO big_board_entries (rank, artist, title, year, album_id)
+               VALUES (?, ?, ?, ?, ?)""",
+            (entry["rank"], entry["artist"], entry["title"], entry["year"], album_id),
+        )
+
         if progress_callback and (i + 1) % 50 == 0:
             progress_callback(f"Matched {matched}/{i + 1} entries...", i + 1, total)
 
-    # Log the sync
-    unmatched_json = json.dumps(unmatched) if unmatched else None
+    # Log the sync (no longer need unmatched JSON since entries live in their own table)
     cursor.execute(
         """INSERT INTO sync_log (sync_type, albums_added, albums_updated, unmatched_entries, notes)
-           VALUES ('big_board', 0, ?, ?, ?)""",
-        (matched, unmatched_json, f"{len(unmatched)} unmatched entries"),
+           VALUES ('big_board', 0, ?, NULL, ?)""",
+        (matched, f"{len(unmatched)} unmatched entries"),
     )
 
     conn.commit()

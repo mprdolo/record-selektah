@@ -83,6 +83,21 @@ def init_db():
             ON listens(album_id);
         CREATE INDEX IF NOT EXISTS idx_listens_selected_at
             ON listens(selected_at);
+
+        -- Big Board entries (standalone, linked to albums via FK)
+        CREATE TABLE IF NOT EXISTS big_board_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rank INTEGER NOT NULL,
+            artist TEXT NOT NULL,
+            title TEXT NOT NULL,
+            year INTEGER,
+            album_id INTEGER,
+            FOREIGN KEY (album_id) REFERENCES albums(id)
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_big_board_rank
+            ON big_board_entries(rank);
+        CREATE INDEX IF NOT EXISTS idx_big_board_album_id
+            ON big_board_entries(album_id);
     """)
 
     # Migrations — add columns that may not exist yet
@@ -95,6 +110,52 @@ def init_db():
             cursor.execute(f"SELECT {column} FROM {table} LIMIT 1")
         except sqlite3.OperationalError:
             cursor.execute(sql)
+
+    # Migrate existing Big Board data into big_board_entries table
+    cursor.execute("SELECT COUNT(*) FROM big_board_entries")
+    bb_count = cursor.fetchone()[0]
+    if bb_count == 0:
+        migrated = 0
+
+        # 1. Migrate matched albums (big_board_rank IS NOT NULL) into new table
+        cursor.execute(
+            """SELECT id, big_board_rank, big_board_year, artist, title
+               FROM albums WHERE big_board_rank IS NOT NULL"""
+        )
+        matched_rows = cursor.fetchall()
+        for row in matched_rows:
+            cursor.execute(
+                """INSERT OR IGNORE INTO big_board_entries (rank, artist, title, year, album_id)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (row["big_board_rank"], row["artist"], row["title"],
+                 row["big_board_year"], row["id"]),
+            )
+            migrated += cursor.rowcount
+
+        # 2. Migrate unmatched entries from latest sync_log JSON
+        cursor.execute(
+            """SELECT unmatched_entries FROM sync_log
+               WHERE sync_type = 'big_board' AND unmatched_entries IS NOT NULL
+               ORDER BY id DESC LIMIT 1"""
+        )
+        log_row = cursor.fetchone()
+        if log_row and log_row["unmatched_entries"]:
+            import json as _json
+            unmatched = _json.loads(log_row["unmatched_entries"])
+            for u in unmatched:
+                cursor.execute(
+                    """INSERT OR IGNORE INTO big_board_entries (rank, artist, title, year, album_id)
+                       VALUES (?, ?, ?, ?, NULL)""",
+                    (u["rank"], u["artist"], u["title"], u.get("year")),
+                )
+                migrated += cursor.rowcount
+
+        # 3. Clear old columns on albums (leave columns in schema)
+        if migrated > 0:
+            cursor.execute(
+                "UPDATE albums SET big_board_rank = NULL, big_board_year = NULL"
+            )
+            print(f"Migrated {migrated} Big Board entries to big_board_entries table")
 
     conn.commit()
     conn.close()

@@ -65,10 +65,13 @@ def previous_album():
             return api_response(False, message="No previous selection found.", status_code=404)
 
         cursor.execute(
-            """SELECT id, artist, title, release_year, master_year, big_board_year,
-                      master_year_override, cover_image_url, genres, styles, format,
-                      big_board_rank, discogs_url, master_url
-               FROM albums WHERE id = ?""",
+            """SELECT a.id, a.artist, a.title, a.release_year, a.master_year,
+                      a.master_year_override, a.cover_image_url, a.genres, a.styles,
+                      a.format, a.discogs_url, a.master_url,
+                      bb.rank AS big_board_rank, bb.year AS big_board_year
+               FROM albums a
+               LEFT JOIN big_board_entries bb ON bb.album_id = a.id
+               WHERE a.id = ?""",
             (listen["album_id"],),
         )
         album = cursor.fetchone()
@@ -203,10 +206,11 @@ def listening_history():
         cursor.execute(
             """SELECT l.id, l.album_id, l.selected_at, l.did_listen, l.skipped,
                       a.artist, a.title, a.release_year, a.master_year,
-                      a.big_board_year, a.master_year_override, a.cover_image_url,
-                      a.genres, a.big_board_rank
+                      a.master_year_override, a.cover_image_url,
+                      a.genres, bb.rank AS big_board_rank, bb.year AS big_board_year
                FROM listens l
                JOIN albums a ON l.album_id = a.id
+               LEFT JOIN big_board_entries bb ON bb.album_id = a.id
                WHERE l.did_listen = 1 OR l.skipped = 1
                ORDER BY l.selected_at DESC
                LIMIT ? OFFSET ?""",
@@ -258,7 +262,7 @@ def collection_stats():
         cursor.execute("SELECT COUNT(*) FROM albums WHERE is_removed = 1")
         removed = cursor.fetchone()[0]
 
-        cursor.execute("SELECT COUNT(*) FROM albums WHERE big_board_rank IS NOT NULL AND is_removed = 0")
+        cursor.execute("SELECT COUNT(*) FROM big_board_entries WHERE album_id IS NOT NULL")
         ranked = cursor.fetchone()[0]
 
         cursor.execute(
@@ -305,56 +309,32 @@ def bigboard():
     try:
         cursor = conn.cursor()
 
-        # Get owned albums with big_board_rank
+        # Single query: all Big Board entries LEFT JOIN albums
         cursor.execute(
-            """SELECT id, big_board_rank, artist, title,
-                      big_board_year, master_year, release_year,
-                      master_year_override, cover_image_url, genres
-               FROM albums
-               WHERE big_board_rank IS NOT NULL AND is_removed = 0
-               ORDER BY big_board_rank"""
+            """SELECT bb.rank, bb.artist, bb.title, bb.year,
+                      bb.album_id, a.id AS joined_album_id,
+                      a.cover_image_url, a.genres
+               FROM big_board_entries bb
+               LEFT JOIN albums a ON a.id = bb.album_id AND a.is_removed = 0
+               ORDER BY bb.rank"""
         )
         rows = cursor.fetchall()
 
         entries = []
         for row in rows:
-            display_year = row["master_year_override"] or row["big_board_year"] or row["master_year"] or row["release_year"]
+            owned = row["joined_album_id"] is not None
             genres = json.loads(row["genres"]) if row["genres"] else []
             entries.append({
-                "rank": row["big_board_rank"],
+                "rank": row["rank"],
                 "artist": row["artist"],
                 "title": row["title"],
-                "year": display_year,
-                "cover_image_url": row["cover_image_url"],
-                "genres": genres,
-                "owned": True,
-                "album_id": row["id"],
+                "year": row["year"],
+                "cover_image_url": row["cover_image_url"] if owned else None,
+                "genres": genres if owned else [],
+                "owned": owned,
+                "album_id": row["album_id"] if owned else None,
             })
 
-        owned_ranks = {e["rank"] for e in entries}
-
-        # Get unmatched entries from the most recent big_board sync
-        cursor.execute(
-            """SELECT unmatched_entries FROM sync_log
-               WHERE sync_type = 'big_board' AND unmatched_entries IS NOT NULL
-               ORDER BY id DESC LIMIT 1"""
-        )
-        row = cursor.fetchone()
-        if row and row["unmatched_entries"]:
-            unmatched = json.loads(row["unmatched_entries"])
-            for u in unmatched:
-                if u["rank"] not in owned_ranks:
-                    entries.append({
-                        "rank": u["rank"],
-                        "artist": u["artist"],
-                        "title": u["title"],
-                        "year": u.get("year"),
-                        "cover_image_url": None,
-                        "genres": [],
-                        "owned": False,
-                    })
-
-        entries.sort(key=lambda e: e["rank"])
         return api_response(data=entries)
     finally:
         conn.close()
@@ -374,10 +354,13 @@ def library():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """SELECT id, artist, title, release_year, master_year, big_board_year,
-                      master_year_override, cover_image_url, genres, format, big_board_rank
-               FROM albums WHERE is_removed = 0
-               ORDER BY artist, title"""
+            """SELECT a.id, a.artist, a.title, a.release_year, a.master_year,
+                      a.master_year_override, a.cover_image_url, a.genres, a.format,
+                      bb.rank AS big_board_rank, bb.year AS big_board_year
+               FROM albums a
+               LEFT JOIN big_board_entries bb ON bb.album_id = a.id
+               WHERE a.is_removed = 0
+               ORDER BY a.artist, a.title"""
         )
         rows = cursor.fetchall()
 
@@ -439,12 +422,14 @@ def listening_stats():
         cursor = conn.cursor()
         cursor.execute(
             """SELECT a.id, a.artist, a.title, a.release_year, a.master_year,
-                      a.big_board_year, a.master_year_override, a.cover_image_url,
-                      a.genres, a.big_board_rank, COUNT(l.id) as listen_count,
+                      a.master_year_override, a.cover_image_url,
+                      a.genres, bb.rank AS big_board_rank, bb.year AS big_board_year,
+                      COUNT(l.id) as listen_count,
                       MIN(l.selected_at) as first_listened,
                       MAX(l.selected_at) as last_listened
                FROM albums a
                JOIN listens l ON l.album_id = a.id AND l.did_listen = 1
+               LEFT JOIN big_board_entries bb ON bb.album_id = a.id
                WHERE a.is_removed = 0
                GROUP BY a.id
                ORDER BY listen_count DESC, a.artist, a.title"""
@@ -479,10 +464,13 @@ def excluded_albums():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """SELECT id, artist, title, release_year, master_year, big_board_year,
-                      master_year_override, cover_image_url, genres, format, big_board_rank
-               FROM albums WHERE is_excluded = 1 AND is_removed = 0
-               ORDER BY artist, title"""
+            """SELECT a.id, a.artist, a.title, a.release_year, a.master_year,
+                      a.master_year_override, a.cover_image_url, a.genres, a.format,
+                      bb.rank AS big_board_rank, bb.year AS big_board_year
+               FROM albums a
+               LEFT JOIN big_board_entries bb ON bb.album_id = a.id
+               WHERE a.is_excluded = 1 AND a.is_removed = 0
+               ORDER BY a.artist, a.title"""
         )
         rows = cursor.fetchall()
 
@@ -514,11 +502,14 @@ def album_detail(album_id):
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """SELECT id, artist, title, release_year, master_year, big_board_year,
-                      master_year_override, cover_image_url, genres, styles, format,
-                      big_board_rank, discogs_url, master_url, discogs_master_id,
-                      master_id_override
-               FROM albums WHERE id = ?""",
+            """SELECT a.id, a.artist, a.title, a.release_year, a.master_year,
+                      a.master_year_override, a.cover_image_url, a.genres, a.styles,
+                      a.format, a.discogs_url, a.master_url, a.discogs_master_id,
+                      a.master_id_override,
+                      bb.rank AS big_board_rank, bb.year AS big_board_year
+               FROM albums a
+               LEFT JOIN big_board_entries bb ON bb.album_id = a.id
+               WHERE a.id = ?""",
             (album_id,),
         )
         album = cursor.fetchone()
@@ -738,12 +729,14 @@ def search_albums():
         cursor = conn.cursor()
         like = f"%{q}%"
         cursor.execute(
-            """SELECT id, artist, title, release_year, master_year, big_board_year,
-                      master_year_override, cover_image_url, genres, big_board_rank
-               FROM albums
-               WHERE is_removed = 0
-                 AND (artist LIKE ? OR title LIKE ?)
-               ORDER BY artist, title
+            """SELECT a.id, a.artist, a.title, a.release_year, a.master_year,
+                      a.master_year_override, a.cover_image_url, a.genres,
+                      bb.rank AS big_board_rank, bb.year AS big_board_year
+               FROM albums a
+               LEFT JOIN big_board_entries bb ON bb.album_id = a.id
+               WHERE a.is_removed = 0
+                 AND (a.artist LIKE ? OR a.title LIKE ?)
+               ORDER BY a.artist, a.title
                LIMIT 20""",
             (like, like),
         )
@@ -774,7 +767,6 @@ def match_bigboard():
     body = request.get_json(silent=True) or {}
     album_id = body.get("album_id")
     rank = body.get("rank")
-    year = body.get("year")
 
     if not album_id or not rank:
         return api_response(False, message="album_id and rank are required.", status_code=400)
@@ -790,30 +782,21 @@ def match_bigboard():
         if not cursor.fetchone():
             return api_response(False, message="Album not found.", status_code=404)
 
-        # Check if another album already has this rank
+        # Check entry exists
+        cursor.execute("SELECT id FROM big_board_entries WHERE rank = ?", (rank,))
+        if not cursor.fetchone():
+            return api_response(False, message="Big Board entry not found.", status_code=404)
+
+        # Clear any existing match to this album (one rank per album)
         cursor.execute(
-            "SELECT id, artist, title FROM albums WHERE big_board_rank = ? AND id != ?",
-            (rank, album_id),
+            "UPDATE big_board_entries SET album_id = NULL WHERE album_id = ?",
+            (album_id,),
         )
-        existing = cursor.fetchone()
-        if existing:
-            # Clear the rank from the other album
-            cursor.execute(
-                "UPDATE albums SET big_board_rank = NULL, big_board_year = NULL WHERE id = ?",
-                (existing["id"],),
-            )
 
-        # Set rank on the target album
-        updates = ["big_board_rank = ?", "updated_at = CURRENT_TIMESTAMP"]
-        params = [rank]
-        if year:
-            updates.append("big_board_year = ?")
-            params.append(int(year))
-
-        params.append(album_id)
+        # Set album_id on the entry
         cursor.execute(
-            f"UPDATE albums SET {', '.join(updates)} WHERE id = ?",
-            params,
+            "UPDATE big_board_entries SET album_id = ? WHERE rank = ?",
+            (album_id, rank),
         )
         conn.commit()
         return api_response(message=f"Album matched to Big Board rank #{rank}.")
@@ -831,11 +814,17 @@ def unmatch_bigboard():
         return api_response(False, message="album_id is required.", status_code=400)
     conn = get_db_connection()
     try:
+        album_id = int(album_id)
         cursor = conn.cursor()
+
+        # Clear album_id on the entry — entry stays in table as unowned
         cursor.execute(
-            "UPDATE albums SET big_board_rank = NULL, big_board_year = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (int(album_id),),
+            "UPDATE big_board_entries SET album_id = NULL WHERE album_id = ?",
+            (album_id,),
         )
+        if cursor.rowcount == 0:
+            return api_response(False, message="Album has no Big Board rank.", status_code=400)
+
         conn.commit()
         return api_response(message="Big Board rank removed.")
     except ValueError:
