@@ -938,6 +938,8 @@
     function closeDetailCard() {
         closeModal(detailModal);
         if (detailCardDirty) {
+            const scrollY = window.scrollY;
+
             // Refresh main page album if it matches
             if (currentAlbum && currentAlbum.album_id === detailAlbumId) {
                 api(`/api/album/${detailAlbumId}`).then(resp => {
@@ -954,6 +956,27 @@
             }
             // Refresh history to pick up any cover/metadata changes
             loadHistory(true);
+
+            // Refresh the visible section with scroll preservation
+            if (!bigboardSection.classList.contains('hidden')) {
+                bigboardData = [];
+                loadBigBoard().then(() => {
+                    requestAnimationFrame(() => window.scrollTo(0, scrollY));
+                });
+            } else if (!librarySection.classList.contains('hidden')) {
+                loadLibrary().then(() => {
+                    requestAnimationFrame(() => window.scrollTo(0, scrollY));
+                });
+            } else if (!lstatsSection.classList.contains('hidden')) {
+                loadListeningStats().then(() => {
+                    requestAnimationFrame(() => window.scrollTo(0, scrollY));
+                });
+            } else if (!excludedSection.classList.contains('hidden')) {
+                loadExcludedAlbums().then(() => {
+                    requestAnimationFrame(() => window.scrollTo(0, scrollY));
+                });
+            }
+
             detailCardDirty = false;
         }
     }
@@ -1344,15 +1367,25 @@
     const btnMatchSearch = $('#btn-match-search');
     const matchResults = $('#match-results');
     const btnMatchClose = $('#btn-match-close');
+    const matchEditArtist = $('#match-edit-artist');
+    const matchEditTitle = $('#match-edit-title');
+    const matchEditYear = $('#match-edit-year');
+    const btnMatchEditSave = $('#btn-match-edit-save');
     let matchEntry = null;
+    let matchModalDirty = false;
 
     function openMatchModal(entry) {
         matchEntry = entry;
+        matchModalDirty = false;
         matchEntryInfo.innerHTML = `
             <span class="match-rank">#${entry.rank}</span>
             <span class="match-artist-title">${esc(entry.artist)} — ${esc(entry.title)}</span>
             ${entry.year ? ` (${entry.year})` : ''}
         `;
+        // Populate edit fields
+        matchEditArtist.value = entry.artist || '';
+        matchEditTitle.value = entry.title || '';
+        matchEditYear.value = entry.year || '';
         matchSearchInput.value = entry.artist.split(',')[0].trim();
         matchResults.innerHTML = '';
         openModal(matchModal);
@@ -1362,8 +1395,63 @@
 
     function closeMatchModal() {
         closeModal(matchModal);
+        if (matchModalDirty) {
+            const scrollY = window.scrollY;
+            bigboardData = [];
+            loadBigBoard().then(() => {
+                requestAnimationFrame(() => window.scrollTo(0, scrollY));
+            });
+        }
         matchEntry = null;
+        matchModalDirty = false;
     }
+
+    async function saveMatchEntryEdit() {
+        if (!matchEntry) return;
+        const artist = matchEditArtist.value.trim();
+        const title = matchEditTitle.value.trim();
+        const yearVal = matchEditYear.value.trim();
+
+        if (!artist || !title) {
+            showToast('Artist and title are required', 'error');
+            return;
+        }
+
+        btnMatchEditSave.disabled = true;
+        try {
+            const body = { artist, title };
+            if (yearVal) body.year = parseInt(yearVal, 10);
+            else body.year = '';
+
+            await api(`/api/bigboard/entry/${matchEntry.rank}`, 'PUT', body);
+            showToast('Entry updated');
+            matchModalDirty = true;
+
+            // Update local entry + header display
+            matchEntry.artist = artist;
+            matchEntry.title = title;
+            matchEntry.year = yearVal ? parseInt(yearVal, 10) : null;
+            matchEntryInfo.innerHTML = `
+                <span class="match-rank">#${matchEntry.rank}</span>
+                <span class="match-artist-title">${esc(matchEntry.artist)} — ${esc(matchEntry.title)}</span>
+                ${matchEntry.year ? ` (${matchEntry.year})` : ''}
+            `;
+
+            // Update local bigboardData if loaded
+            const idx = bigboardData.findIndex(e => e.rank === matchEntry.rank);
+            if (idx !== -1) {
+                bigboardData[idx].artist = artist;
+                bigboardData[idx].title = title;
+                bigboardData[idx].year = matchEntry.year;
+            }
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            btnMatchEditSave.disabled = false;
+        }
+    }
+
+    btnMatchEditSave.addEventListener('click', saveMatchEntryEdit);
 
     async function searchForMatch() {
         const q = matchSearchInput.value.trim();
@@ -1412,10 +1500,8 @@
                             rank: matchEntry.rank,
                         });
                         showToast(`Matched to Big Board #${matchEntry.rank}`);
+                        matchModalDirty = true;
                         closeMatchModal();
-                        // Reload Big Board data to reflect the change
-                        bigboardData = [];
-                        loadBigBoard();
                     } catch (err) {
                         showToast(err.message, 'error');
                         btn.disabled = false;
@@ -1433,6 +1519,9 @@
     btnMatchSearch.addEventListener('click', searchForMatch);
     matchSearchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') searchForMatch();
+    });
+    matchEditYear.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') saveMatchEntryEdit();
     });
     btnMatchClose.addEventListener('click', closeMatchModal);
     matchModal.addEventListener('click', (e) => {

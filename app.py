@@ -761,6 +761,55 @@ def search_albums():
         conn.close()
 
 
+@app.route("/api/bigboard/entry/<int:rank>", methods=["PUT"])
+def update_bigboard_entry(rank):
+    """Update artist, title, or year on a Big Board entry."""
+    body = request.get_json(silent=True) or {}
+    artist = body.get("artist")
+    title = body.get("title")
+    year = body.get("year")
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM big_board_entries WHERE rank = ?", (rank,))
+        if not cursor.fetchone():
+            return api_response(False, message="Big Board entry not found.", status_code=404)
+
+        updates = []
+        params = []
+        if artist is not None:
+            updates.append("artist = ?")
+            params.append(artist.strip())
+        if title is not None:
+            updates.append("title = ?")
+            params.append(title.strip())
+        if year is not None:
+            if year == "" or year is False:
+                updates.append("year = NULL")
+            else:
+                yr = int(year)
+                if yr < 1900 or yr > 2099:
+                    return api_response(False, message="Year must be between 1900 and 2099.", status_code=400)
+                updates.append("year = ?")
+                params.append(yr)
+
+        if not updates:
+            return api_response(False, message="No fields to update.", status_code=400)
+
+        params.append(rank)
+        cursor.execute(
+            f"UPDATE big_board_entries SET {', '.join(updates)} WHERE rank = ?",
+            params,
+        )
+        conn.commit()
+        return api_response(message="Big Board entry updated.")
+    except ValueError:
+        return api_response(False, message="Invalid year.", status_code=400)
+    finally:
+        conn.close()
+
+
 @app.route("/api/bigboard/match", methods=["POST"])
 def match_bigboard():
     """Manually match an unowned Big Board entry to an album in the collection."""

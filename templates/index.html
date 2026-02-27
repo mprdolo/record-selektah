@@ -516,11 +516,19 @@ Talking Heads,Remain in Light,1980,x</code></pre>
     <div class="modal-overlay" id="match-modal">
         <div class="modal modal-detail">
             <div class="modal-header">
-                <h2>Match Album</h2>
+                <h2>Edit &amp; Match</h2>
                 <button class="btn-close" id="btn-match-close">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="match-entry-info" id="match-entry-info"></div>
+                <div class="match-edit-section" id="match-edit-section">
+                    <div class="match-edit-row">
+                        <input type="text" class="match-edit-input" id="match-edit-artist" placeholder="Artist">
+                        <input type="text" class="match-edit-input match-edit-title" id="match-edit-title" placeholder="Title">
+                        <input type="number" class="match-edit-input match-edit-year" id="match-edit-year" placeholder="Year" min="1900" max="2099">
+                        <button class="btn btn-sm btn-save-master" id="btn-match-edit-save">Save</button>
+                    </div>
+                </div>
                 <div class="match-search">
                     <input type="text" class="input-master" id="match-search-input"
                            placeholder="Search your collection by artist or title...">

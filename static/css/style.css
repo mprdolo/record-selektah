@@ -1439,6 +1439,39 @@ body {
     font-weight: 600;
 }
 
+.match-edit-section {
+    margin-bottom: 16px;
+    padding: 10px;
+    background: var(--cream);
+    border-radius: var(--radius);
+}
+
+.match-edit-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.match-edit-input {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1.5px solid var(--cream-dark);
+    border-radius: var(--radius);
+    font-family: var(--font);
+    font-size: 0.82rem;
+    outline: none;
+    transition: border-color var(--transition);
+    min-width: 0;
+}
+
+.match-edit-input:focus {
+    border-color: var(--green);
+}
+
+.match-edit-input.match-edit-year {
+    flex: 0 0 72px;
+}
+
 .match-search {
     display: flex;
     gap: 8px;
