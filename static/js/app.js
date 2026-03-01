@@ -907,6 +907,7 @@
     const detailRankText = $('#detail-rank-text');
     const detailPlayed = $('#detail-played');
     const detailSkipped = $('#detail-skipped');
+    const btnJustPlayed = $('#btn-just-played');
     const detailDiscogsLink = $('#detail-discogs-link');
     const detailMasterLink = $('#detail-master-link');
     const detailNoMaster = $('#detail-no-master');
@@ -1374,6 +1375,24 @@
             btnRemoveYear.disabled = false;
         }
     }
+
+    // Just Played button
+    btnJustPlayed.addEventListener('click', async () => {
+        if (btnJustPlayed.disabled) return;
+        btnJustPlayed.disabled = true;
+        try {
+            await api(`/api/album/${detailAlbumId}/just-played`, 'POST');
+            showToast('Play recorded');
+            detailCardDirty = true;
+            refreshBigBoardBehindModal();
+            const resp = await api(`/api/album/${detailAlbumId}`);
+            populateDetailCard(resp.data);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setTimeout(() => { btnJustPlayed.disabled = false; }, 1000);
+        }
+    });
 
     // Play dates toggle
     detailPlayed.addEventListener('click', async (e) => {

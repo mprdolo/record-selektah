@@ -154,6 +154,21 @@ def mark_skipped(album_id):
         conn.close()
 
 
+@app.route("/api/album/<int:album_id>/just-played", methods=["POST"])
+def just_played(album_id):
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO listens (album_id, did_listen) VALUES (?, 1)",
+            (album_id,),
+        )
+        conn.commit()
+        return api_response(message="Recorded play.")
+    finally:
+        conn.close()
+
+
 @app.route("/api/exclude/<int:album_id>", methods=["POST"])
 def exclude_album(album_id):
     conn = get_db_connection()

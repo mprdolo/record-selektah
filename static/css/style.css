@@ -1320,6 +1320,7 @@ body {
 
 .detail-stats {
     display: flex;
+    align-items: center;
     gap: 16px;
     margin-bottom: 10px;
 }
@@ -1344,6 +1345,29 @@ body {
 .detail-stat-link.has-plays:hover {
     color: var(--green);
     border-bottom-color: var(--green);
+}
+
+.btn-just-played {
+    padding: 4px 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: var(--font);
+    border: 1.5px solid var(--green);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--green);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.btn-just-played:hover:not(:disabled) {
+    background: var(--green);
+    color: #fff;
+}
+
+.btn-just-played:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .detail-play-dates {
