@@ -281,10 +281,11 @@ body {
 }
 
 .album-cover-wrap {
+    position: relative;
     width: 300px;
     height: 300px;
     border-radius: var(--radius-lg);
-    overflow: hidden;
+    overflow: visible;
     box-shadow: var(--shadow-lg);
     background-color: var(--cream-dark);
 }
@@ -295,6 +296,7 @@ body {
     object-fit: cover;
     opacity: 0;
     transition: opacity var(--transition);
+    border-radius: var(--radius-lg);
 }
 
 .album-cover.loaded {
@@ -325,11 +327,42 @@ body {
     font-weight: 600;
 }
 
-.album-rank {
-    font-size: 0.8rem;
-    color: var(--green);
-    font-weight: 600;
-    margin-top: 4px;
+.album-rank-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: linear-gradient(135deg, var(--gold), #e8b828);
+    color: var(--brown);
+    border-radius: 10px;
+    padding: 6px 12px;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(212, 168, 67, 0.5);
+    z-index: 2;
+    line-height: 1.1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: badgePop 0.4s ease-out;
+}
+
+.album-rank-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.7;
+}
+
+.album-rank-number {
+    font-size: 1.4rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+@keyframes badgePop {
+    0% { transform: scale(0); opacity: 0; }
+    60% { transform: scale(1.15); }
+    100% { transform: scale(1); opacity: 1; }
 }
 
 .album-links {

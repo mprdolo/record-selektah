@@ -215,7 +215,8 @@
 
         // Big Board rank
         if (album.big_board_rank) {
-            albumRank.textContent = 'Big Board: #' + album.big_board_rank;
+            const rankNum = $('#album-rank-number');
+            if (rankNum) rankNum.textContent = '#' + album.big_board_rank;
             albumRank.classList.remove('hidden');
         } else {
             albumRank.classList.add('hidden');
