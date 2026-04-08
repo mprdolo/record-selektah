@@ -117,6 +117,21 @@ def sync_big_board(csv_path=None, progress_callback=None):
     """
     entries = read_big_board_csv(csv_path)
 
+    # Deduplicate entries by normalized artist+title (CSV may have repeated rows)
+    seen = set()
+    deduped_entries = []
+    duplicates_skipped = 0
+    for entry in entries:
+        key = (normalize_for_matching(entry["artist"]), normalize_for_matching(entry["title"]))
+        if key in seen:
+            duplicates_skipped += 1
+            continue
+        seen.add(key)
+        # Re-assign sequential rank after deduplication
+        entry["rank"] = len(deduped_entries) + 1
+        deduped_entries.append(entry)
+    entries = deduped_entries
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -126,9 +141,16 @@ def sync_big_board(csv_path=None, progress_callback=None):
     )
     albums = cursor.fetchall()
 
-    # Snapshot existing entries so we can preserve manual edits and matches
+    # Snapshot existing entries so we can preserve manual matches and via links.
+    # Key by normalized artist+title so we can find the old entry even if the
+    # rank shifted after deduplication.
     cursor.execute("SELECT rank, artist, title, year, album_id, via_album_id FROM big_board_entries")
-    old_entries = {row["rank"]: dict(row) for row in cursor.fetchall()}
+    old_by_key = {}
+    for row in cursor.fetchall():
+        key = (normalize_for_matching(row["artist"]), normalize_for_matching(row["title"]))
+        # Keep the first (best-ranked) entry per key
+        if key not in old_by_key:
+            old_by_key[key] = dict(row)
 
     # Clear existing Big Board entries so re-imports are clean
     cursor.execute("DELETE FROM big_board_entries")
@@ -136,43 +158,38 @@ def sync_big_board(csv_path=None, progress_callback=None):
     matched = 0
     unmatched = []
     total = len(entries)
+    # Track which album_ids have already been claimed by a higher-ranked entry
+    # to prevent the same album from matching multiple entries
+    claimed_album_ids = set()
 
     if progress_callback:
         progress_callback(f"Matching {total} Big Board entries...", 0, total)
 
     for i, entry in enumerate(entries):
-        old = old_entries.get(entry["rank"])
+        key = (normalize_for_matching(entry["artist"]), normalize_for_matching(entry["title"]))
+        old = old_by_key.get(key)
 
-        # Preserve manual field edits: if the old entry's field differs from
-        # what the CSV originally had (i.e. user edited it), keep the edited
-        # value. We detect this by checking if the old value differs from the
-        # new CSV value — if it does and an album_id was set or the text
-        # changed, the user likely edited it manually.
+        # Always use the current CSV values for artist/title/year.
+        # The CSV is the source of truth for these fields.
         final_artist = entry["artist"]
         final_title = entry["title"]
         final_year = entry["year"]
 
-        if old:
-            # If the old entry had a different artist/title/year than what
-            # the CSV says now, the user edited it — preserve the edit
-            if old["artist"] != entry["artist"]:
-                final_artist = old["artist"]
-            if old["title"] != entry["title"]:
-                final_title = old["title"]
-            if old["year"] != entry["year"]:
-                final_year = old["year"]
-
-        # Determine album_id: preserve existing manual match, otherwise
-        # try fuzzy matching
+        # Determine album_id: preserve existing match if unclaimed, otherwise
+        # try fuzzy matching. Each album can only match one entry (highest rank wins).
         album_id = None
         via_album_id = old["via_album_id"] if old else None
-        if old and old["album_id"] is not None:
+        need_fuzzy = True
+
+        if old and old["album_id"] is not None and old["album_id"] not in claimed_album_ids:
             # Preserve the existing association (manual or auto)
             album_id = old["album_id"]
             matched += 1
-        else:
+            need_fuzzy = False
+
+        if need_fuzzy:
             best_match, score = find_best_match(entry, albums)
-            if best_match and score >= MATCH_THRESHOLD:
+            if best_match and score >= MATCH_THRESHOLD and best_match["id"] not in claimed_album_ids:
                 album_id = best_match["id"]
                 matched += 1
             else:
@@ -189,6 +206,9 @@ def sync_big_board(csv_path=None, progress_callback=None):
                         else None
                     ),
                 })
+
+        if album_id is not None:
+            claimed_album_ids.add(album_id)
 
         cursor.execute(
             """INSERT INTO big_board_entries (rank, artist, title, year, album_id, via_album_id)
@@ -214,11 +234,13 @@ def sync_big_board(csv_path=None, progress_callback=None):
         "matched": matched,
         "unmatched_count": len(unmatched),
         "unmatched": unmatched,
+        "duplicates_skipped": duplicates_skipped,
     }
 
+    dupe_note = f" ({duplicates_skipped} duplicates skipped.)" if duplicates_skipped else ""
     if progress_callback:
         progress_callback(
-            f"Done! Matched {matched}/{total} entries. {len(unmatched)} unmatched.",
+            f"Done! Matched {matched}/{total} entries. {len(unmatched)} unmatched.{dupe_note}",
             total,
             total,
         )

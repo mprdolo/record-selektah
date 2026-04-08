@@ -71,6 +71,7 @@ def previous_album():
                       bb.rank AS big_board_rank, bb.year AS big_board_year
                FROM albums a
                LEFT JOIN big_board_entries bb ON bb.album_id = a.id
+                   AND bb.rank = (SELECT MIN(bb2.rank) FROM big_board_entries bb2 WHERE bb2.album_id = a.id)
                WHERE a.id = ?""",
             (listen["album_id"],),
         )
@@ -226,6 +227,7 @@ def listening_history():
                FROM listens l
                JOIN albums a ON l.album_id = a.id
                LEFT JOIN big_board_entries bb ON bb.album_id = a.id
+                   AND bb.rank = (SELECT MIN(bb2.rank) FROM big_board_entries bb2 WHERE bb2.album_id = a.id)
                WHERE l.did_listen = 1 OR l.skipped = 1
                ORDER BY l.selected_at DESC
                LIMIT ? OFFSET ?""",
@@ -390,6 +392,7 @@ def library():
                       bb.rank AS big_board_rank, bb.year AS big_board_year
                FROM albums a
                LEFT JOIN big_board_entries bb ON bb.album_id = a.id
+                   AND bb.rank = (SELECT MIN(bb2.rank) FROM big_board_entries bb2 WHERE bb2.album_id = a.id)
                WHERE a.is_removed = 0
                ORDER BY a.artist, a.title"""
         )
@@ -461,6 +464,7 @@ def listening_stats():
                FROM albums a
                JOIN listens l ON l.album_id = a.id AND l.did_listen = 1
                LEFT JOIN big_board_entries bb ON bb.album_id = a.id
+                   AND bb.rank = (SELECT MIN(bb2.rank) FROM big_board_entries bb2 WHERE bb2.album_id = a.id)
                WHERE a.is_removed = 0
                GROUP BY a.id
                ORDER BY listen_count DESC, a.artist, a.title"""
@@ -500,6 +504,7 @@ def excluded_albums():
                       bb.rank AS big_board_rank, bb.year AS big_board_year
                FROM albums a
                LEFT JOIN big_board_entries bb ON bb.album_id = a.id
+                   AND bb.rank = (SELECT MIN(bb2.rank) FROM big_board_entries bb2 WHERE bb2.album_id = a.id)
                WHERE a.is_excluded = 1 AND a.is_removed = 0
                ORDER BY a.artist, a.title"""
         )
@@ -540,6 +545,7 @@ def album_detail(album_id):
                       bb.rank AS big_board_rank, bb.year AS big_board_year
                FROM albums a
                LEFT JOIN big_board_entries bb ON bb.album_id = a.id
+                   AND bb.rank = (SELECT MIN(bb2.rank) FROM big_board_entries bb2 WHERE bb2.album_id = a.id)
                WHERE a.id = ?""",
             (album_id,),
         )
@@ -800,6 +806,7 @@ def search_albums():
                       bb.rank AS big_board_rank, bb.year AS big_board_year
                FROM albums a
                LEFT JOIN big_board_entries bb ON bb.album_id = a.id
+                   AND bb.rank = (SELECT MIN(bb2.rank) FROM big_board_entries bb2 WHERE bb2.album_id = a.id)
                WHERE a.is_removed = 0
                  AND (a.artist LIKE ? OR a.title LIKE ?)
                ORDER BY a.artist, a.title
@@ -1046,9 +1053,13 @@ def run_sync(sync_type):
         elif sync_type == "bigboard":
             from bigboard_sync import sync_big_board
             results = sync_big_board(progress_callback=progress_callback)
+            dupe_note = (
+                f" ({results['duplicates_skipped']} duplicates skipped.)"
+                if results.get('duplicates_skipped') else ""
+            )
             sync_status["message"] = (
                 f"Done! Matched {results['matched']}/{results['total_entries']} entries. "
-                f"{results['unmatched_count']} unmatched."
+                f"{results['unmatched_count']} unmatched.{dupe_note}"
             )
         elif sync_type == "master_years":
             from master_year_sync import sync_master_years
