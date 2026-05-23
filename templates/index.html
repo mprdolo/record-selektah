@@ -95,6 +95,22 @@
                     </div>
                     <p class="sync-message" id="sync-message">Starting...</p>
                 </div>
+
+                <div class="sync-settings">
+                    <h3 class="sync-settings-title">Settings</h3>
+                    <div class="sync-setting-row">
+                        <label class="sync-setting-label" for="setting-discogs-username">Discogs Username</label>
+                        <input class="sync-setting-input" type="text" id="setting-discogs-username" placeholder="your_username" autocomplete="off" spellcheck="false">
+                    </div>
+                    <div class="sync-setting-row">
+                        <label class="sync-setting-label" for="setting-bigboard-path">Big Board CSV Path</label>
+                        <input class="sync-setting-input" type="text" id="setting-bigboard-path" placeholder="C:\path\to\big_board.csv" autocomplete="off" spellcheck="false">
+                    </div>
+                    <div class="sync-setting-actions">
+                        <button class="btn btn-sm btn-save-master" id="btn-save-settings">Save Settings</button>
+                        <span class="sync-setting-status" id="settings-status"></span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -581,26 +597,4 @@ Talking Heads,Remain in Light,1980,x</code></pre>
     </div>
 
     <!-- Confirm Dialog -->
-    <div class="modal-overlay hidden" id="confirm-modal">
-        <div class="modal modal-confirm">
-            <p id="confirm-message"></p>
-            <div class="confirm-buttons">
-                <button class="btn btn-secondary" id="btn-confirm-cancel">Cancel</button>
-                <button class="btn btn-danger" id="btn-confirm-ok">Exclude</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Footer -->
-    <footer class="site-footer">
-        <img class="footer-stamp" src="{{ url_for('static', filename='Otter_stamp.png') }}" alt="Otter stamp">
-        <p class="footer-tagline">From your friendly neighborhood record obsessive at <a href="https://palmaradio.substack.com" target="_blank" rel="noopener">Public Diplomacy Records</a></p>
-        <p class="footer-credit">Created by <a href="https://palmaradio.substack.com" target="_blank" rel="noopener">M. Palma</a> · <a href="#" id="btn-help" class="footer-help-link">Help &amp; Setup</a></p>
-    </footer>
-
-    <!-- Toast notifications -->
-    <div class="toast-container" id="toast-container"></div>
-
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-</body>
-</html>
+    <div class="modal-overl

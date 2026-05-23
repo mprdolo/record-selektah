@@ -109,13 +109,30 @@ def find_best_match(entry, albums):
     return best_match, best_score
 
 
+def _get_active_csv_path():
+    """Return CSV path from DB settings if set, otherwise fall back to config."""
+    try:
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM settings WHERE key = 'bigboard_csv_path'")
+            row = cursor.fetchone()
+            if row and row["value"]:
+                return row["value"]
+        finally:
+            conn.close()
+    except Exception:
+        pass
+    return BIG_BOARD_CSV_PATH
+
+
 def sync_big_board(csv_path=None, progress_callback=None):
     """
     Import the Big Board CSV and match entries to albums in the database.
 
     Returns dict with sync results.
     """
-    entries = read_big_board_csv(csv_path)
+    entries = read_big_board_csv(csv_path or _get_active_csv_path())
 
     # Deduplicate entries by normalized artist+title (CSV may have repeated rows)
     seen = set()
@@ -265,13 +282,3 @@ if __name__ == "__main__":
         print(f"\nBig Board import complete!")
         print(f"  Total entries: {results['total_entries']}")
         print(f"  Matched:       {results['matched']}")
-        print(f"  Unmatched:     {results['unmatched_count']}")
-
-        if results["unmatched"]:
-            print(f"\nUnmatched entries:")
-            for u in results["unmatched"]:
-                owned_tag = " [OWNED]" if u["owned"] else ""
-                best = f" (closest: {u['best_match']}, score={u['best_match_score']})" if u["best_match"] else ""
-                print(f"  #{u['rank']:3d}: {u['artist']} \u2014 {u['title']} ({u['year']}){owned_tag}{best}")
-    except Exception as e:
-        print(f"\nImport failed: {e}")

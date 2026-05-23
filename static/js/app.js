@@ -52,6 +52,10 @@
     const syncProgress = $('#sync-progress');
     const syncProgressFill = $('#sync-progress-fill');
     const syncMessage = $('#sync-message');
+    const settingDiscogsUsername = $('#setting-discogs-username');
+    const settingBigboardPath = $('#setting-bigboard-path');
+    const btnSaveSettings = $('#btn-save-settings');
+    const settingsStatus = $('#settings-status');
 
     const confirmModal = $('#confirm-modal');
     const confirmMessage = $('#confirm-message');
@@ -367,8 +371,43 @@
 
     let syncPollTimer = null;
 
+    async function loadSettings() {
+        try {
+            const resp = await api('/api/settings');
+            if (resp.data) {
+                settingDiscogsUsername.value = resp.data.discogs_username || '';
+                settingBigboardPath.value = resp.data.bigboard_csv_path || '';
+            }
+        } catch (err) {
+            // Non-fatal — settings just won't pre-fill
+        }
+    }
+
+    async function saveSettings() {
+        const username = settingDiscogsUsername.value.trim();
+        const csvPath = settingBigboardPath.value.trim();
+        if (!username && !csvPath) {
+            settingsStatus.textContent = 'Nothing to save.';
+            setTimeout(() => { settingsStatus.textContent = ''; }, 2000);
+            return;
+        }
+        try {
+            btnSaveSettings.disabled = true;
+            await api('/api/settings', 'POST', { discogs_username: username, bigboard_csv_path: csvPath });
+            settingsStatus.textContent = 'Saved!';
+            setTimeout(() => { settingsStatus.textContent = ''; }, 2500);
+        } catch (err) {
+            settingsStatus.style.color = 'var(--red, #c0392b)';
+            settingsStatus.textContent = 'Error saving.';
+            setTimeout(() => { settingsStatus.textContent = ''; settingsStatus.style.color = ''; }, 2500);
+        } finally {
+            btnSaveSettings.disabled = false;
+        }
+    }
+
     function openSyncModal() {
         openModal(syncModal);
+        loadSettings();
     }
 
     function closeSyncModal() {
@@ -2325,60 +2364,4 @@
     });
 
     btnSyncDiscogs.addEventListener('click', () => startSync('discogs'));
-    btnSyncBigboard.addEventListener('click', () => startSync('bigboard'));
-    btnSyncMasterYears.addEventListener('click', () => startSync('master_years'));
-
-    btnConfirmCancel.addEventListener('click', () => closeModal(confirmModal));
-    btnConfirmOk.addEventListener('click', confirmExclude);
-    confirmModal.addEventListener('click', (e) => {
-        if (e.target === confirmModal) closeModal(confirmModal);
-    });
-
-    btnWelcomeSync.addEventListener('click', () => {
-        openSyncModal();
-    });
-
-    btnLoadMore.addEventListener('click', () => {
-        historyPage++;
-        loadHistory(false);
-    });
-
-    // Excluded section
-    btnExcludedOpen.addEventListener('click', openExcluded);
-    btnExcludedBack.addEventListener('click', closeExcluded);
-
-    // Big Board
-    btnBigboard.addEventListener('click', openBigBoard);
-    btnBigboardBack.addEventListener('click', closeBigBoard);
-
-    bigboardTabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            bigboardTabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            bigboardView = tab.dataset.view;
-            renderBigBoard();
-        });
-    });
-
-    bigboardFilters.forEach(radio => {
-        radio.addEventListener('change', () => {
-            bigboardFilter = radio.value;
-            renderBigBoard();
-        });
-    });
-
-    bigboardSearchInput.addEventListener('input', () => {
-        bigboardSearch = bigboardSearchInput.value.trim();
-        renderBigBoard();
-    });
-
-    // --- Init ---
-
-    async function init() {
-        await loadStats();
-        await loadHistory(true);
-    }
-
-    init();
-
-})();
+    btnSyncBigbo

@@ -1031,6 +1031,49 @@ def _fetch_release_data(release_id):
     return {"year": data.get("year"), "cover_image_url": cover}
 
 
+# --- Settings API ---
+
+@app.route("/api/settings", methods=["GET"])
+def get_settings():
+    from config import DISCOGS_USERNAME, BIG_BOARD_CSV_PATH
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT key, value FROM settings WHERE key IN ('discogs_username', 'bigboard_csv_path')"
+        )
+        rows = {row["key"]: row["value"] for row in cursor.fetchall()}
+        return api_response(data={
+            "discogs_username": rows.get("discogs_username") or DISCOGS_USERNAME,
+            "bigboard_csv_path": rows.get("bigboard_csv_path") or BIG_BOARD_CSV_PATH,
+        })
+    finally:
+        conn.close()
+
+
+@app.route("/api/settings", methods=["POST"])
+def save_settings():
+    body = request.get_json(silent=True) or {}
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        allowed = {"discogs_username", "bigboard_csv_path"}
+        for key in allowed:
+            if key in body:
+                val = (body[key] or "").strip()
+                if val:
+                    cursor.execute(
+                        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                        (key, val),
+                    )
+                else:
+                    cursor.execute("DELETE FROM settings WHERE key = ?", (key,))
+        conn.commit()
+        return api_response(message="Settings saved.")
+    finally:
+        conn.close()
+
+
 # --- Sync API ---
 
 def run_sync(sync_type):
@@ -1104,49 +1147,4 @@ def sync_bigboard():
                 status_code=409,
             )
         sync_status["in_progress"] = True
-        sync_status["type"] = "bigboard"
-        sync_status["message"] = "Starting Big Board import..."
-        sync_status["current"] = 0
-        sync_status["total"] = 0
-
-    thread = threading.Thread(target=run_sync, args=("bigboard",), daemon=True)
-    thread.start()
-    return api_response(message="Big Board import started.")
-
-
-@app.route("/api/sync/master_years", methods=["POST"])
-def sync_master_years():
-    with sync_lock:
-        if sync_status["in_progress"]:
-            return api_response(
-                False,
-                message=f"A {sync_status['type']} sync is already in progress.",
-                status_code=409,
-            )
-        sync_status["in_progress"] = True
-        sync_status["type"] = "master_years"
-        sync_status["message"] = "Starting master year fetch..."
-        sync_status["current"] = 0
-        sync_status["total"] = 0
-
-    thread = threading.Thread(target=run_sync, args=("master_years",), daemon=True)
-    thread.start()
-    return api_response(message="Master year fetch started.")
-
-
-@app.route("/api/sync/status")
-def get_sync_status():
-    return api_response(data={
-        "in_progress": sync_status["in_progress"],
-        "type": sync_status["type"],
-        "message": sync_status["message"],
-        "current": sync_status["current"],
-        "total": sync_status["total"],
-    })
-
-
-# --- App startup ---
-
-if __name__ == "__main__":
-    init_db()
-    app.run(debug=True, port=3345)
+        

@@ -9,19 +9,39 @@ from config import (
     DISCOGS_RATE_LIMIT_DELAY,
 )
 
-COLLECTION_URL = (
-    f"https://api.discogs.com/users/{DISCOGS_USERNAME}/collection/folders/0/releases"
-)
-HEADERS = {
-    "Authorization": f"Discogs token={DISCOGS_TOKEN}",
-    "User-Agent": DISCOGS_USER_AGENT,
-}
+def _get_active_username():
+    """Return username from DB settings if set, otherwise fall back to config."""
+    try:
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM settings WHERE key = 'discogs_username'")
+            row = cursor.fetchone()
+            if row and row["value"]:
+                return row["value"]
+        finally:
+            conn.close()
+    except Exception:
+        pass
+    return DISCOGS_USERNAME
 
 
-def fetch_collection_page(page=1, per_page=100):
+def _make_headers():
+    return {
+        "Authorization": f"Discogs token={DISCOGS_TOKEN}",
+        "User-Agent": DISCOGS_USER_AGENT,
+    }
+
+
+def _make_collection_url(username=None):
+    u = username or _get_active_username()
+    return f"https://api.discogs.com/users/{u}/collection/folders/0/releases"
+
+
+def fetch_collection_page(page=1, per_page=100, username=None):
     """Fetch a single page of the user's Discogs collection."""
     params = {"page": page, "per_page": per_page, "sort": "added", "sort_order": "desc"}
-    resp = requests.get(COLLECTION_URL, headers=HEADERS, params=params, timeout=30)
+    resp = requests.get(_make_collection_url(username), headers=_make_headers(), params=params, timeout=30)
     resp.raise_for_status()
     return resp.json()
 
@@ -64,6 +84,8 @@ def sync_collection(progress_callback=None):
     if not DISCOGS_TOKEN:
         raise ValueError("DISCOGS_TOKEN is not set. Check your .env file.")
 
+    username = _get_active_username()
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -88,7 +110,7 @@ def sync_collection(progress_callback=None):
                 else:
                     progress_callback(f"Fetching page {page}...", page, 0)
 
-            data = fetch_collection_page(page=page)
+            data = fetch_collection_page(page=page, username=username)
 
             pagination = data.get("pagination", {})
             total_pages = pagination.get("pages", 1)
@@ -246,26 +268,4 @@ def sync_collection(progress_callback=None):
     except requests.exceptions.ConnectionError:
         conn.rollback()
         raise RuntimeError(
-            "Couldn't reach Discogs — check your internet connection and try again."
-        )
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-
-if __name__ == "__main__":
-    def print_progress(msg, current, total):
-        print(msg)
-
-    print("Starting Discogs collection sync...")
-    try:
-        results = sync_collection(progress_callback=print_progress)
-        print(f"\nSync complete!")
-        print(f"  Added:   {results['added']}")
-        print(f"  Updated: {results['updated']}")
-        print(f"  Removed: {results['removed']}")
-        print(f"  Total:   {results['total_fetched']}")
-    except Exception as e:
-        print(f"\nSync failed: {e}")
+            "Couldn'
