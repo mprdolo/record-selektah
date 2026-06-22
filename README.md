@@ -11,7 +11,7 @@ Inspired by reggae sound system DJs ("selektahs") of the 1960s-70s.
 - **Random Selection** -- Pick a record at random from your collection and mark it as Played, Skipped, or Excluded
 - **The Library** -- Browse your full Discogs collection sorted by artist, title, or year
 - **Listening Stats** -- See your most-played albums ranked by play count
-- **Big Board Explorer** -- View your personal album ranking by rank, decade, genre, or track your year-by-year Collecting Progress
+- **Big Board Explorer** -- View your personal album ranking by rank, decade, genre, or track your year-by-year Collecting Progress (defaults to a 1960-2020 / 30-albums-per-year target; adjust `PROGRESS_START_YEAR`, `PROGRESS_END_YEAR`, and `PROGRESS_TARGET_PER_YEAR` near the top of `static/js/app.js` if your Big Board uses a different structure)
 - **Excluded Albums** -- Manage albums removed from the random selection pool
 - **Album Detail Cards** -- View metadata, genres, styles, play counts, and Discogs links for any album
 - **Master Release Overrides** -- Manually set or correct master release links for accurate year data
@@ -45,11 +45,12 @@ Inspired by reggae sound system DJs ("selektahs") of the 1960s-70s.
    cp .env.example .env
    ```
 
-4. Open `.env` and set your Discogs credentials:
+4. Open `.env` and set your Discogs credentials. You'll see a third line, `FLASK_SECRET_KEY` -- that's just an internal Flask setting unrelated to Discogs; leave it as-is or change it to any random string:
 
    ```
    DISCOGS_TOKEN=your_token_here
    DISCOGS_USERNAME=your_username
+   FLASK_SECRET_KEY=change_this_to_a_random_string
    ```
 
    Generate a personal access token at [discogs.com/settings/developers](https://www.discogs.com/settings/developers).
