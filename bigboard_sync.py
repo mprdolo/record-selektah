@@ -169,6 +169,14 @@ def sync_big_board(csv_path=None, progress_callback=None):
         if key not in old_by_key:
             old_by_key[key] = dict(row)
 
+    # Load matches the user explicitly rejected ("I don't own this album")
+    # so fuzzy matching doesn't reapply the same wrong association on re-sync.
+    cursor.execute("SELECT entry_artist_key, entry_title_key, album_id FROM big_board_rejected_matches")
+    rejected_by_key = {}
+    for row in cursor.fetchall():
+        key = (row["entry_artist_key"], row["entry_title_key"])
+        rejected_by_key.setdefault(key, set()).add(row["album_id"])
+
     # Clear existing Big Board entries so re-imports are clean
     cursor.execute("DELETE FROM big_board_entries")
 
@@ -185,6 +193,7 @@ def sync_big_board(csv_path=None, progress_callback=None):
     for i, entry in enumerate(entries):
         key = (normalize_for_matching(entry["artist"]), normalize_for_matching(entry["title"]))
         old = old_by_key.get(key)
+        rejected_ids = rejected_by_key.get(key, set())
 
         # Always use the current CSV values for artist/title/year.
         # The CSV is the source of truth for these fields.
@@ -198,7 +207,12 @@ def sync_big_board(csv_path=None, progress_callback=None):
         via_album_id = old["via_album_id"] if old else None
         need_fuzzy = True
 
-        if old and old["album_id"] is not None and old["album_id"] not in claimed_album_ids:
+        if (
+            old
+            and old["album_id"] is not None
+            and old["album_id"] not in claimed_album_ids
+            and old["album_id"] not in rejected_ids
+        ):
             # Preserve the existing association (manual or auto)
             album_id = old["album_id"]
             matched += 1
@@ -206,7 +220,12 @@ def sync_big_board(csv_path=None, progress_callback=None):
 
         if need_fuzzy:
             best_match, score = find_best_match(entry, albums)
-            if best_match and score >= MATCH_THRESHOLD and best_match["id"] not in claimed_album_ids:
+            if (
+                best_match
+                and score >= MATCH_THRESHOLD
+                and best_match["id"] not in claimed_album_ids
+                and best_match["id"] not in rejected_ids
+            ):
                 album_id = best_match["id"]
                 matched += 1
             else:
@@ -282,3 +301,13 @@ if __name__ == "__main__":
         print(f"\nBig Board import complete!")
         print(f"  Total entries: {results['total_entries']}")
         print(f"  Matched:       {results['matched']}")
+        print(f"  Unmatched:     {results['unmatched_count']}")
+
+        if results["unmatched"]:
+            print(f"\nUnmatched entries:")
+            for u in results["unmatched"]:
+                owned_tag = " [OWNED]" if u["owned"] else ""
+                best = f" (closest: {u['best_match']}, score={u['best_match_score']})" if u["best_match"] else ""
+                print(f"  #{u['rank']:3d}: {u['artist']} — {u['title']} ({u['year']}){owned_tag}{best}")
+    except Exception as e:
+        print(f"\nImport failed: {e}")

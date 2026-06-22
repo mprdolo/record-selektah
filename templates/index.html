@@ -133,7 +133,7 @@
                 <button class="bigboard-tab active" data-view="rank">Rank</button>
                 <button class="bigboard-tab" data-view="decade">Decades</button>
                 <button class="bigboard-tab" data-view="genre">Genres</button>
-                <button class="bigboard-tab" data-view="heatmap">Heatmap</button>
+                <button class="bigboard-tab" data-view="progress">Collecting Progress</button>
             </div>
             <div class="bigboard-filter">
                 <label class="filter-radio">
@@ -323,7 +323,7 @@ Talking Heads,Remain in Light,1980,x</code></pre>
                 <h3>Using the App</h3>
                 <ul>
                     <li><strong>Home:</strong> Click "Select Next Record" to get a random pick from your collection. Mark it as Played, Skip, or Exclude it from future selections.</li>
-                    <li><strong>Big Board:</strong> Browse your ranked album list, view by decade, genre, or as a heatmap.</li>
+                    <li><strong>Big Board:</strong> Browse your ranked album list, view by decade, genre, or track your year-by-year collecting progress.</li>
                     <li><strong>Library:</strong> Browse your full Discogs collection, sorted by artist, title, or year.</li>
                     <li><strong>Stats:</strong> View your most-played albums ranked by play count.</li>
                     <li><strong>Excluded:</strong> Manage albums you've excluded from random selection.</li>
@@ -448,6 +448,20 @@ Talking Heads,Remain in Light,1980,x</code></pre>
         </section>
 
     </main>
+
+    <!-- Year Detail Modal (Collecting Progress) -->
+    <div class="modal-overlay" id="year-detail-modal">
+        <div class="modal modal-year-detail">
+            <div class="modal-header">
+                <h2 id="year-detail-title"></h2>
+                <button class="btn-close" id="btn-year-detail-close" title="Back to Collecting Progress">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="year-detail-summary" id="year-detail-summary"></div>
+                <div class="bb-grid" id="year-detail-grid"></div>
+            </div>
+        </div>
+    </div>
 
     <!-- Album Detail Card Modal -->
     <div class="modal-overlay" id="detail-modal">
@@ -597,4 +611,26 @@ Talking Heads,Remain in Light,1980,x</code></pre>
     </div>
 
     <!-- Confirm Dialog -->
-    <div class="modal-overl
+    <div class="modal-overlay hidden" id="confirm-modal">
+        <div class="modal modal-confirm">
+            <p id="confirm-message"></p>
+            <div class="confirm-buttons">
+                <button class="btn btn-secondary" id="btn-confirm-cancel">Cancel</button>
+                <button class="btn btn-danger" id="btn-confirm-ok">Exclude</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <img class="footer-stamp" src="{{ url_for('static', filename='Otter_stamp.png') }}" alt="Otter stamp">
+        <p class="footer-tagline">From your friendly neighborhood record obsessive at <a href="https://palmaradio.substack.com" target="_blank" rel="noopener">Public Diplomacy Records</a></p>
+        <p class="footer-credit">Created by <a href="https://palmaradio.substack.com" target="_blank" rel="noopener">M. Palma</a> · <a href="#" id="btn-help" class="footer-help-link">Help &amp; Setup</a></p>
+    </footer>
+
+    <!-- Toast notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

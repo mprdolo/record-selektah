@@ -11,7 +11,7 @@ Inspired by reggae sound system DJs ("selektahs") of the 1960s-70s.
 - **Random Selection** -- Pick a record at random from your collection and mark it as Played, Skipped, or Excluded
 - **The Library** -- Browse your full Discogs collection sorted by artist, title, or year
 - **Listening Stats** -- See your most-played albums ranked by play count
-- **Big Board Explorer** -- View your personal album ranking by rank, decade, genre, or as a heatmap
+- **Big Board Explorer** -- View your personal album ranking by rank, decade, genre, or track your year-by-year Collecting Progress
 - **Excluded Albums** -- Manage albums removed from the random selection pool
 - **Album Detail Cards** -- View metadata, genres, styles, play counts, and Discogs links for any album
 - **Master Release Overrides** -- Manually set or correct master release links for accurate year data
@@ -109,7 +109,7 @@ Click **Sync Data** > **"Fetch Master Release Years"** to backfill original rele
 | Section | What it does |
 |---------|-------------|
 | **Home** | Click "Select Next Record" for a random pick. Mark as Played, Skip, or Exclude. |
-| **Big Board** | Browse your ranked list by rank tiers, decades, genres, or as a heatmap. |
+| **Big Board** | Browse your ranked list by rank tiers, decades, genres, or your year-by-year Collecting Progress. |
 | **Library** | Browse your full collection with sort and search. |
 | **Stats** | View most-played albums by play count. |
 | **Excluded** | Manage albums excluded from random selection. |

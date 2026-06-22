@@ -4,9 +4,15 @@ from flask import Flask, jsonify, request, render_template
 from config import SECRET_KEY
 from db import init_db, get_db_connection
 from selector import select_next_album
+from bigboard_sync import normalize_for_matching
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+# Always re-read templates from disk, even when running via start.pyw
+# (pythonw, debug=False) where Jinja would otherwise cache them in memory
+# for the lifetime of the process.
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.jinja_env.auto_reload = True
 
 # Track sync state
 sync_status = {"in_progress": False, "type": None, "message": "", "current": 0, "total": 0}
@@ -905,8 +911,9 @@ def match_bigboard():
             return api_response(False, message="Album not found.", status_code=404)
 
         # Check entry exists
-        cursor.execute("SELECT id FROM big_board_entries WHERE rank = ?", (rank,))
-        if not cursor.fetchone():
+        cursor.execute("SELECT id, artist, title FROM big_board_entries WHERE rank = ?", (rank,))
+        entry_row = cursor.fetchone()
+        if not entry_row:
             return api_response(False, message="Big Board entry not found.", status_code=404)
 
         # Clear any existing match to this album (one rank per album)
@@ -920,6 +927,19 @@ def match_bigboard():
             "UPDATE big_board_entries SET album_id = ? WHERE rank = ?",
             (album_id, rank),
         )
+
+        # The user is explicitly confirming this match — forget any past
+        # rejection of this exact entry/album pairing so it isn't blocked.
+        cursor.execute(
+            """DELETE FROM big_board_rejected_matches
+               WHERE entry_artist_key = ? AND entry_title_key = ? AND album_id = ?""",
+            (
+                normalize_for_matching(entry_row["artist"]),
+                normalize_for_matching(entry_row["title"]),
+                album_id,
+            ),
+        )
+
         conn.commit()
         return api_response(message=f"Album matched to Big Board rank #{rank}.")
     except ValueError:
@@ -939,6 +959,15 @@ def unmatch_bigboard():
         album_id = int(album_id)
         cursor = conn.cursor()
 
+        # Look up the entry's artist/title before clearing, so we can
+        # remember this rejection and keep future re-syncs from
+        # re-applying the same incorrect match.
+        cursor.execute(
+            "SELECT artist, title FROM big_board_entries WHERE album_id = ?",
+            (album_id,),
+        )
+        entry_row = cursor.fetchone()
+
         # Clear album_id on the entry — entry stays in table as unowned
         cursor.execute(
             "UPDATE big_board_entries SET album_id = NULL WHERE album_id = ?",
@@ -946,6 +975,18 @@ def unmatch_bigboard():
         )
         if cursor.rowcount == 0:
             return api_response(False, message="Album has no Big Board rank.", status_code=400)
+
+        if entry_row:
+            cursor.execute(
+                """INSERT OR IGNORE INTO big_board_rejected_matches
+                   (entry_artist_key, entry_title_key, album_id)
+                   VALUES (?, ?, ?)""",
+                (
+                    normalize_for_matching(entry_row["artist"]),
+                    normalize_for_matching(entry_row["title"]),
+                    album_id,
+                ),
+            )
 
         conn.commit()
         return api_response(message="Big Board rank removed.")
@@ -1147,4 +1188,49 @@ def sync_bigboard():
                 status_code=409,
             )
         sync_status["in_progress"] = True
-        
+        sync_status["type"] = "bigboard"
+        sync_status["message"] = "Starting Big Board import..."
+        sync_status["current"] = 0
+        sync_status["total"] = 0
+
+    thread = threading.Thread(target=run_sync, args=("bigboard",), daemon=True)
+    thread.start()
+    return api_response(message="Big Board import started.")
+
+
+@app.route("/api/sync/master_years", methods=["POST"])
+def sync_master_years():
+    with sync_lock:
+        if sync_status["in_progress"]:
+            return api_response(
+                False,
+                message=f"A {sync_status['type']} sync is already in progress.",
+                status_code=409,
+            )
+        sync_status["in_progress"] = True
+        sync_status["type"] = "master_years"
+        sync_status["message"] = "Starting master year fetch..."
+        sync_status["current"] = 0
+        sync_status["total"] = 0
+
+    thread = threading.Thread(target=run_sync, args=("master_years",), daemon=True)
+    thread.start()
+    return api_response(message="Master year fetch started.")
+
+
+@app.route("/api/sync/status")
+def get_sync_status():
+    return api_response(data={
+        "in_progress": sync_status["in_progress"],
+        "type": sync_status["type"],
+        "message": sync_status["message"],
+        "current": sync_status["current"],
+        "total": sync_status["total"],
+    })
+
+
+# --- App startup ---
+
+if __name__ == "__main__":
+    init_db()
+    app.run(debug=True, port=3345)

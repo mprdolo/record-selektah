@@ -650,6 +650,7 @@
     const bigboardCount = $('#bigboard-count');
     const bigboardTabs = $$('.bigboard-tab');
     const bigboardFilters = $$('input[name="bb-filter"]');
+    const bigboardFilterBar = $('.bigboard-filter');
 
     let bigboardData = [];
     let bigboardView = 'rank';
@@ -721,7 +722,7 @@
         if (bigboardView === 'rank') renderRankView(data);
         else if (bigboardView === 'decade') renderDecadeView(data);
         else if (bigboardView === 'genre') renderGenreView(data);
-        else if (bigboardView === 'heatmap') renderHeatmap(data);
+        else if (bigboardView === 'progress') renderProgressView();
     }
 
     function getDecade(year) {
@@ -823,7 +824,7 @@
 
         let badgeHtml = '';
         if (entry.via_album_id && entry.via_album_title) {
-            badgeHtml = `<span class="bb-via-badge" title="via ${escapeAttr(entry.via_album_artist + ' \u2014 ' + entry.via_album_title)}">via ${esc(entry.via_album_title)}</span>`;
+            badgeHtml = `<span class="bb-via-badge" title="via ${escapeAttr(entry.via_album_artist + ' — ' + entry.via_album_title)}">via ${esc(entry.via_album_title)}</span>`;
         } else if (entry.owned) {
             badgeHtml = '<span class="bb-owned-badge">Owned</span>';
         }
@@ -855,82 +856,149 @@
         return el;
     }
 
-    function renderHeatmap(data) {
-        hideJumpNav();
-        const decades = [];
-        const decadeSet = new Set();
-        data.forEach(e => {
-            const d = getDecade(e.year);
-            decadeSet.add(d);
-        });
+    // --- Collecting Progress (year-by-year, 30 albums/year target) ---
 
-        const sortedDecades = Array.from(decadeSet).sort((a, b) => {
-            if (a === 'Unknown') return 1;
-            if (b === 'Unknown') return -1;
-            return parseInt(a) - parseInt(b);
-        });
+    const PROGRESS_START_YEAR = 1960;
+    const PROGRESS_END_YEAR = 2020;
+    const PROGRESS_TARGET_PER_YEAR = 30;
 
-        const tiers = ['1–100', '101–200', '201–300', '301–400', '401–500', '501–600'];
-        const tierRanges = [[1,100],[101,200],[201,300],[301,400],[401,500],[501,600]];
+    function getProgressTier(pct) {
+        if (pct >= 100) return { emoji: '🏆', label: 'Complete' };
+        if (pct >= 75) return { emoji: '🔥', label: 'Almost there' };
+        if (pct >= 50) return { emoji: '👌', label: 'Halfway there' };
+        if (pct >= 25) return { emoji: '😬', label: 'Getting there' };
+        if (pct > 0) return { emoji: '😢', label: 'Just started' };
+        return { emoji: '😴', label: 'Not started' };
+    }
 
-        // Build count matrix
-        const matrix = {};
-        tiers.forEach(t => { matrix[t] = {}; sortedDecades.forEach(d => { matrix[t][d] = 0; }); });
-
-        data.forEach(e => {
-            const decade = getDecade(e.year);
-            for (let i = 0; i < tierRanges.length; i++) {
-                if (e.rank >= tierRanges[i][0] && e.rank <= tierRanges[i][1]) {
-                    matrix[tiers[i]][decade]++;
-                    break;
-                }
+    function renderProgressView() {
+        // Always uses the full, unfiltered Big Board data — this is an
+        // absolute year-by-year stat, not subject to the owned/search filters.
+        const ownedByYear = {};
+        bigboardData.forEach(e => {
+            if (e.owned && e.year >= PROGRESS_START_YEAR && e.year <= PROGRESS_END_YEAR) {
+                ownedByYear[e.year] = (ownedByYear[e.year] || 0) + 1;
             }
         });
 
-        // Find max for color scaling
-        let maxCount = 0;
-        tiers.forEach(t => sortedDecades.forEach(d => {
-            if (matrix[t][d] > maxCount) maxCount = matrix[t][d];
-        }));
+        const years = [];
+        for (let y = PROGRESS_START_YEAR; y <= PROGRESS_END_YEAR; y++) years.push(y);
 
-        let html = '<div class="heatmap-wrap"><table class="heatmap-table"><thead><tr><th></th>';
-        sortedDecades.forEach(d => { html += `<th>${esc(d)}</th>`; });
-        html += '</tr></thead><tbody>';
-
-        tiers.forEach(tier => {
-            html += `<tr><td class="heatmap-row-label">${esc(tier)}</td>`;
-            sortedDecades.forEach(d => {
-                const count = matrix[tier][d];
-                const intensity = maxCount > 0 ? count / maxCount : 0;
-                const bgColor = count === 0
-                    ? 'var(--cream-dark)'
-                    : `rgba(45, 90, 61, ${0.15 + intensity * 0.85})`;
-                const textColor = count === 0 ? 'transparent' : '#fff';
-                html += `<td class="heatmap-cell">
-                    <div class="heatmap-box${count === 0 ? ' empty' : ''}"
-                         style="background:${bgColor};color:${textColor}"
-                         title="${count} album${count !== 1 ? 's' : ''} in ${d}, ranks ${tier}">
-                        ${count}
-                    </div>
-                </td>`;
-            });
-            html += '</tr>';
+        const decadeGroups = {};
+        years.forEach(y => {
+            const decade = getDecade(y);
+            if (!decadeGroups[decade]) decadeGroups[decade] = [];
+            decadeGroups[decade].push(y);
         });
+        const sortedDecades = Object.keys(decadeGroups).sort((a, b) => parseInt(a) - parseInt(b));
+        buildJumpNav(sortedDecades, 'bb-prog-sec-');
 
-        html += '</tbody></table></div>';
+        let totalCollected = 0;
+        years.forEach(y => {
+            totalCollected += Math.min(ownedByYear[y] || 0, PROGRESS_TARGET_PER_YEAR);
+        });
+        const totalTarget = years.length * PROGRESS_TARGET_PER_YEAR;
+        const overallPct = totalTarget ? (totalCollected / totalTarget) * 100 : 0;
+        const overallTier = getProgressTier(overallPct);
 
-        // Legend
-        html += `<div class="heatmap-legend">
-            <span>Fewer</span>
-            <div class="heatmap-legend-swatch" style="background:rgba(45,90,61,0.15)"></div>
-            <div class="heatmap-legend-swatch" style="background:rgba(45,90,61,0.45)"></div>
-            <div class="heatmap-legend-swatch" style="background:rgba(45,90,61,0.75)"></div>
-            <div class="heatmap-legend-swatch" style="background:rgba(45,90,61,1)"></div>
-            <span>More</span>
-        </div>`;
+        let html = `
+            <div class="progress-summary">
+                <div class="progress-summary-emoji">${overallTier.emoji}</div>
+                <div class="progress-summary-text">
+                    <div class="progress-summary-count">${totalCollected.toLocaleString()} <span>/ ${totalTarget.toLocaleString()} collected</span></div>
+                    <div class="progress-summary-bar"><div class="progress-summary-bar-fill" style="width:${Math.min(overallPct, 100)}%"></div></div>
+                    <div class="progress-summary-pct">${overallPct.toFixed(1)}% of the way to a complete collection &mdash; ${esc(overallTier.label)}</div>
+                </div>
+            </div>
+        `;
+
+        sortedDecades.forEach(decade => {
+            const decadeYears = decadeGroups[decade];
+            const decadeCollected = decadeYears.reduce(
+                (sum, y) => sum + Math.min(ownedByYear[y] || 0, PROGRESS_TARGET_PER_YEAR), 0
+            );
+            const decadeTarget = decadeYears.length * PROGRESS_TARGET_PER_YEAR;
+            const sectionId = 'bb-prog-sec-' + decade.replace(/[^a-zA-Z0-9]/g, '_');
+
+            html += `<div class="bb-group" id="${sectionId}">
+                <h3 class="bb-group-title">${esc(decade)} <span class="bb-group-count">(${decadeCollected} / ${decadeTarget})</span></h3>
+                <div class="progress-grid">`;
+
+            decadeYears.forEach(y => {
+                const collected = Math.min(ownedByYear[y] || 0, PROGRESS_TARGET_PER_YEAR);
+                const pct = (collected / PROGRESS_TARGET_PER_YEAR) * 100;
+                const tier = getProgressTier(pct);
+
+                let dotsHtml = '';
+                for (let i = 0; i < PROGRESS_TARGET_PER_YEAR; i++) {
+                    dotsHtml += `<span class="progress-dot${i < collected ? ' filled' : ''}"></span>`;
+                }
+
+                html += `
+                    <div class="progress-card" data-year="${y}" title="${collected} of ${PROGRESS_TARGET_PER_YEAR} ${y} albums collected (${pct.toFixed(0)}%) — click to view albums">
+                        <div class="progress-card-header">
+                            <span class="progress-card-year">${y}</span>
+                            <span class="progress-card-emoji">${tier.emoji}</span>
+                        </div>
+                        <div class="progress-dots">${dotsHtml}</div>
+                        <div class="progress-card-footer">
+                            <span class="progress-card-frac">${collected}/${PROGRESS_TARGET_PER_YEAR}</span>
+                            <span class="progress-card-pct">${pct.toFixed(0)}%</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div></div>';
+        });
 
         bigboardContent.innerHTML = html;
     }
+
+    // --- Year Detail Modal (Collecting Progress drill-down) ---
+
+    const yearDetailModal = $('#year-detail-modal');
+    const yearDetailTitle = $('#year-detail-title');
+    const yearDetailSummary = $('#year-detail-summary');
+    const yearDetailGrid = $('#year-detail-grid');
+    const btnYearDetailClose = $('#btn-year-detail-close');
+
+    function openYearDetail(year) {
+        const entries = bigboardData
+            .filter(e => e.year === year)
+            .slice()
+            .sort((a, b) => a.rank - b.rank);
+        const collected = entries.filter(e => e.owned).length;
+
+        yearDetailTitle.textContent = year;
+        yearDetailSummary.textContent =
+            `${collected} / ${PROGRESS_TARGET_PER_YEAR} collected (${Math.round((collected / PROGRESS_TARGET_PER_YEAR) * 100)}%)`;
+
+        yearDetailGrid.innerHTML = '';
+        if (entries.length === 0) {
+            yearDetailGrid.innerHTML = '<p class="year-detail-empty">No Big Board entries for this year yet.</p>';
+        } else {
+            entries.forEach(e => yearDetailGrid.appendChild(createCard(e)));
+        }
+
+        openModal(yearDetailModal);
+    }
+
+    function closeYearDetail() {
+        closeModal(yearDetailModal);
+    }
+
+    btnYearDetailClose.addEventListener('click', closeYearDetail);
+    yearDetailModal.addEventListener('click', (e) => {
+        if (e.target === yearDetailModal) closeYearDetail();
+    });
+
+    // Delegated click handler — progress cards are re-rendered on every
+    // tab switch, so bind once on the stable container instead of per-card.
+    bigboardContent.addEventListener('click', (e) => {
+        const card = e.target.closest('.progress-card');
+        if (card) openYearDetail(parseInt(card.dataset.year, 10));
+    });
 
     // --- Album Detail Card ---
 
@@ -1523,7 +1591,7 @@
         sorted.forEach(e => {
             const tierStart = Math.floor((e.rank - 1) / tierSize) * tierSize + 1;
             const tierEnd = tierStart + tierSize - 1;
-            const label = `${tierStart}\u2013${tierEnd}`;
+            const label = `${tierStart}–${tierEnd}`;
             if (!groups[label]) groups[label] = [];
             groups[label].push(e);
         });
@@ -1591,7 +1659,7 @@
         // Show existing via link if present
         const viaNameLink = $('#match-via-name');
         if (entry.via_album_id && entry.via_album_title) {
-            viaNameLink.textContent = `${entry.via_album_artist} \u2014 ${entry.via_album_title}`;
+            viaNameLink.textContent = `${entry.via_album_artist} — ${entry.via_album_title}`;
             viaNameLink.dataset.viaAlbumId = entry.via_album_id;
             viaCurrent.classList.remove('hidden');
         } else {
@@ -1794,7 +1862,7 @@
                         await api(`/api/bigboard/entry/${matchEntry.rank}/via`, 'POST', {
                             album_id: album.album_id,
                         });
-                        showToast(`Linked via "${album.artist} \u2014 ${album.title}"`);
+                        showToast(`Linked via "${album.artist} — ${album.title}"`);
                         matchModalDirty = true;
                         refreshBigBoardBehindModal();
 
@@ -1814,7 +1882,7 @@
 
                         // Show the via link in the modal instead of closing
                         const viaNameLink = $('#match-via-name');
-                        viaNameLink.textContent = `${album.artist} \u2014 ${album.title}`;
+                        viaNameLink.textContent = `${album.artist} — ${album.title}`;
                         viaNameLink.dataset.viaAlbumId = album.album_id;
                         $('#match-via-current').classList.remove('hidden');
 
@@ -2364,4 +2432,66 @@
     });
 
     btnSyncDiscogs.addEventListener('click', () => startSync('discogs'));
-    btnSyncBigbo
+    btnSyncBigboard.addEventListener('click', () => startSync('bigboard'));
+    btnSyncMasterYears.addEventListener('click', () => startSync('master_years'));
+    btnSaveSettings.addEventListener('click', saveSettings);
+
+    btnConfirmCancel.addEventListener('click', () => closeModal(confirmModal));
+    btnConfirmOk.addEventListener('click', confirmExclude);
+    confirmModal.addEventListener('click', (e) => {
+        if (e.target === confirmModal) closeModal(confirmModal);
+    });
+
+    btnWelcomeSync.addEventListener('click', () => {
+        openSyncModal();
+    });
+
+    btnLoadMore.addEventListener('click', () => {
+        historyPage++;
+        loadHistory(false);
+    });
+
+    // Excluded section
+    btnExcludedOpen.addEventListener('click', openExcluded);
+    btnExcludedBack.addEventListener('click', closeExcluded);
+
+    // Big Board
+    btnBigboard.addEventListener('click', openBigBoard);
+    btnBigboardBack.addEventListener('click', closeBigBoard);
+
+    bigboardTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            bigboardTabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            bigboardView = tab.dataset.view;
+            // The Collecting Progress view is an absolute year-by-year stat,
+            // not affected by the owned/search filters — hide those controls.
+            const isProgress = bigboardView === 'progress';
+            bigboardFilterBar.classList.toggle('hidden', isProgress);
+            bigboardSearchInput.closest('.section-search').classList.toggle('hidden', isProgress);
+            renderBigBoard();
+        });
+    });
+
+    bigboardFilters.forEach(radio => {
+        radio.addEventListener('change', () => {
+            bigboardFilter = radio.value;
+            renderBigBoard();
+        });
+    });
+
+    bigboardSearchInput.addEventListener('input', () => {
+        bigboardSearch = bigboardSearchInput.value.trim();
+        renderBigBoard();
+    });
+
+    // --- Init ---
+
+    async function init() {
+        await loadStats();
+        await loadHistory(true);
+    }
+
+    init();
+
+})();

@@ -268,4 +268,26 @@ def sync_collection(progress_callback=None):
     except requests.exceptions.ConnectionError:
         conn.rollback()
         raise RuntimeError(
-            "Couldn'
+            "Couldn't reach Discogs — check your internet connection and try again."
+        )
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    def print_progress(msg, current, total):
+        print(msg)
+
+    print("Starting Discogs collection sync...")
+    try:
+        results = sync_collection(progress_callback=print_progress)
+        print(f"\nSync complete!")
+        print(f"  Added:   {results['added']}")
+        print(f"  Updated: {results['updated']}")
+        print(f"  Removed: {results['removed']}")
+        print(f"  Total:   {results['total_fetched']}")
+    except Exception as e:
+        print(f"\nSync failed: {e}")

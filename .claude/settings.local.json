@@ -9,7 +9,27 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(curl:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "WebFetch(domain:kindredcocktails.com)",
+      "Bash(pip install:*)",
+      "Bash(PYTHONIOENCODING=utf-8 python:*)",
+      "Bash(sqlite3:*)",
+      "Bash(PYTHONUTF8=1 python:*)",
+      "Bash(ls:*)",
+      "Bash(tasklist:*)",
+      "Bash(ie4uinit.exe:*)",
+      "Bash(git -C:*)",
+      "Bash(git -C \"C:\\\\Users\\\\mpard\\\\Documents\\\\ClaudeProjects\" rev-parse --git-dir:*)",
+      "Bash(git init:*)",
+      "Bash(git rm:*)",
+      "Bash(with lime\"\\). The results page always fetches fresh data from /api/shake\ninstead of reading potentially stale sessionStorage cache, so avg_rating\nreflects recent ratings immediately on back-navigation.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git remote add:*)",
+      "Bash(gh repo create:*)",
+      "Bash(start:*)",
+      "Bash(own this album\" option that unmatches without replacement.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(python3:*)",
+      "Bash(wmic process where \"name=''python.exe'' and commandline like ''%app.py%''\" get processid)",
+      "Bash(netstat:*)"
     ]
   }
 }

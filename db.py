@@ -98,6 +98,18 @@ def init_db():
             ON big_board_entries(rank);
         CREATE INDEX IF NOT EXISTS idx_big_board_album_id
             ON big_board_entries(album_id);
+
+        -- Remembers Big Board entry/album pairings the user explicitly
+        -- rejected (via "I don't own this album"), so re-syncs don't
+        -- re-apply the same incorrect fuzzy match. Keyed by normalized
+        -- artist/title since entries are deleted and reinserted on sync.
+        CREATE TABLE IF NOT EXISTS big_board_rejected_matches (
+            entry_artist_key TEXT NOT NULL,
+            entry_title_key TEXT NOT NULL,
+            album_id INTEGER NOT NULL,
+            rejected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (entry_artist_key, entry_title_key, album_id)
+        );
     """)
 
     # Migrations — add columns that may not exist yet
