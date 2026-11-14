@@ -19,24 +19,27 @@ def get_eligible_albums(conn):
                   bb.rank AS big_board_rank, bb.year AS big_board_year
            FROM albums a
            LEFT JOIN big_board_entries bb ON bb.album_id = a.id
+               AND bb.rank = (SELECT MIN(bb2.rank) FROM big_board_entries bb2 WHERE bb2.album_id = a.id)
            WHERE a.is_excluded = 0 AND a.is_removed = 0"""
     )
     return cursor.fetchall()
 
 
 def get_listen_history(conn, album_id):
-    """Get the most recent listen and total play count for an album."""
+    """Get the most recent play and total play count for an album."""
     cursor = conn.cursor()
+    # Only count real plays: every pick creates a listens row, including ones
+    # you skipped or never marked, and those shouldn't show as "Played Nx".
     cursor.execute(
         """SELECT selected_at, did_listen, skipped FROM listens
-           WHERE album_id = ?
-           ORDER BY selected_at DESC LIMIT 1""",
+           WHERE album_id = ? AND did_listen = 1
+           ORDER BY id DESC LIMIT 1""",
         (album_id,),
     )
     last = cursor.fetchone()
 
     cursor.execute(
-        "SELECT COUNT(*) FROM listens WHERE album_id = ?",
+        "SELECT COUNT(*) FROM listens WHERE album_id = ? AND did_listen = 1",
         (album_id,),
     )
     count = cursor.fetchone()[0]
@@ -53,7 +56,8 @@ def get_recent_selections(conn, n=10):
            FROM listens l
            JOIN albums a ON l.album_id = a.id
            LEFT JOIN big_board_entries bb ON bb.album_id = a.id
-           ORDER BY l.selected_at DESC
+               AND bb.rank = (SELECT MIN(bb2.rank) FROM big_board_entries bb2 WHERE bb2.album_id = a.id)
+           ORDER BY l.id DESC
            LIMIT ?""",
         (n,),
     )

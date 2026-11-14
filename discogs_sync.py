@@ -74,6 +74,127 @@ def parse_release(item):
     }
 
 
+def _upsert_release(cursor, release):
+    """Insert or update one collection release. Returns (album_id, was_added)."""
+    cursor.execute(
+        "SELECT id, master_id_override, release_id_override FROM albums WHERE discogs_release_id = ?",
+        (release["discogs_release_id"],),
+    )
+    row = cursor.fetchone()
+
+    if row is None:
+        cursor.execute(
+            """INSERT INTO albums
+            (discogs_release_id, discogs_master_id, artist, title,
+             release_year, cover_image_url, genres, styles, format,
+             discogs_url, master_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                release["discogs_release_id"],
+                release["discogs_master_id"],
+                release["artist"],
+                release["title"],
+                release["release_year"],
+                release["cover_image_url"],
+                release["genres"],
+                release["styles"],
+                release["format"],
+                release["discogs_url"],
+                release["master_url"],
+            ),
+        )
+        return cursor.lastrowid, True
+
+    # Existing album: refresh metadata, but never overwrite what the user set
+    # by hand. A master override owns the master link and the cover; a
+    # release override owns the release link, year and cover.
+    fields = {
+        "artist": release["artist"],
+        "title": release["title"],
+        "genres": release["genres"],
+        "styles": release["styles"],
+        "format": release["format"],
+    }
+    if not row["master_id_override"]:
+        fields["discogs_master_id"] = release["discogs_master_id"]
+        fields["master_url"] = release["master_url"]
+    if not row["release_id_override"]:
+        fields["release_year"] = release["release_year"]
+        fields["discogs_url"] = release["discogs_url"]
+    if not row["master_id_override"] and not row["release_id_override"]:
+        fields["cover_image_url"] = release["cover_image_url"]
+
+    assignments = ", ".join(f"{col} = ?" for col in fields)
+    cursor.execute(
+        f"""UPDATE albums SET {assignments}, is_removed = 0, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?""",
+        [*fields.values(), row["id"]],
+    )
+    return row["id"], False
+
+
+def _carry_over_replaced_pressings(cursor, removed_ids, added_ids):
+    """
+    When a record leaves the collection and a record with the same artist and
+    title arrives in the same sync, it's almost always the same album under a
+    different pressing (you swapped it in Discogs). Keep the original row,
+    with its play history, exclusions, overrides and Big Board link, and
+    point it at the new release instead of starting the album over.
+
+    Returns the number of albums carried over.
+    """
+    if not removed_ids or not added_ids:
+        return 0
+
+    def by_name(ids):
+        groups = {}
+        placeholders = ",".join("?" for _ in ids)
+        cursor.execute(
+            f"SELECT * FROM albums WHERE id IN ({placeholders})", list(ids)
+        )
+        for row in cursor.fetchall():
+            key = (row["artist"].strip().lower(), row["title"].strip().lower())
+            groups.setdefault(key, []).append(row)
+        return groups
+
+    removed_by_name = by_name(removed_ids)
+    added_by_name = by_name(added_ids)
+
+    carried = 0
+    for key, old_rows in removed_by_name.items():
+        new_rows = added_by_name.get(key, [])
+        # Only pair them up when it's unambiguous.
+        if len(old_rows) != 1 or len(new_rows) != 1:
+            continue
+        old, new = old_rows[0], new_rows[0]
+
+        cursor.execute("DELETE FROM albums WHERE id = ?", (new["id"],))
+        fields = {
+            "discogs_release_id": new["discogs_release_id"],
+            "release_year": new["release_year"],
+            "genres": new["genres"],
+            "styles": new["styles"],
+            "format": new["format"],
+            "discogs_url": new["discogs_url"],
+            "release_id_override": None,
+        }
+        if not old["master_id_override"]:
+            fields["discogs_master_id"] = new["discogs_master_id"]
+            fields["master_url"] = new["master_url"]
+            fields["cover_image_url"] = new["cover_image_url"]
+            # The master may have changed; let "Fetch Master Years" redo it.
+            if new["discogs_master_id"] != old["discogs_master_id"]:
+                fields["master_year"] = None
+        assignments = ", ".join(f"{col} = ?" for col in fields)
+        cursor.execute(
+            f"""UPDATE albums SET {assignments}, is_removed = 0, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?""",
+            [*fields.values(), old["id"]],
+        )
+        carried += 1
+    return carried
+
+
 def sync_collection(progress_callback=None):
     """
     Sync the full Discogs collection into the database.
@@ -90,10 +211,11 @@ def sync_collection(progress_callback=None):
     cursor = conn.cursor()
 
     # Track what's currently in the DB so we can detect removals
-    cursor.execute("SELECT discogs_release_id FROM albums WHERE is_removed = 0")
-    existing_ids = set(row[0] for row in cursor.fetchall())
+    cursor.execute("SELECT id, discogs_release_id FROM albums WHERE is_removed = 0")
+    existing = {row["discogs_release_id"]: row["id"] for row in cursor.fetchall()}
 
     fetched_ids = set()
+    added_album_ids = set()
     added = 0
     updated = 0
     removed = 0
@@ -122,102 +244,11 @@ def sync_collection(progress_callback=None):
             for item in releases:
                 release = parse_release(item)
                 fetched_ids.add(release["discogs_release_id"])
-
-                # Check if this release already exists
-                cursor.execute(
-                    "SELECT id, is_removed FROM albums WHERE discogs_release_id = ?",
-                    (release["discogs_release_id"],),
-                )
-                row = cursor.fetchone()
-
-                if row is None:
-                    # New album — insert
-                    cursor.execute(
-                        """INSERT INTO albums
-                        (discogs_release_id, discogs_master_id, artist, title,
-                         release_year, cover_image_url, genres, styles, format,
-                         discogs_url, master_url)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                        (
-                            release["discogs_release_id"],
-                            release["discogs_master_id"],
-                            release["artist"],
-                            release["title"],
-                            release["release_year"],
-                            release["cover_image_url"],
-                            release["genres"],
-                            release["styles"],
-                            release["format"],
-                            release["discogs_url"],
-                            release["master_url"],
-                        ),
-                    )
+                album_id, was_added = _upsert_release(cursor, release)
+                if was_added:
+                    added_album_ids.add(album_id)
                     added += 1
                 else:
-                    # Existing album — update metadata, preserve user data
-                    # Check if user has a manual master override
-                    cursor.execute(
-                        "SELECT master_id_override FROM albums WHERE discogs_release_id = ?",
-                        (release["discogs_release_id"],),
-                    )
-                    override_row = cursor.fetchone()
-                    has_override = override_row and override_row["master_id_override"]
-
-                    if has_override:
-                        # Skip master_id, master_url, AND cover_image_url — user overrode master
-                        cursor.execute(
-                            """UPDATE albums SET
-                                artist = ?,
-                                title = ?,
-                                release_year = ?,
-                                genres = ?,
-                                styles = ?,
-                                format = ?,
-                                discogs_url = ?,
-                                is_removed = 0,
-                                updated_at = CURRENT_TIMESTAMP
-                            WHERE discogs_release_id = ?""",
-                            (
-                                release["artist"],
-                                release["title"],
-                                release["release_year"],
-                                release["genres"],
-                                release["styles"],
-                                release["format"],
-                                release["discogs_url"],
-                                release["discogs_release_id"],
-                            ),
-                        )
-                    else:
-                        cursor.execute(
-                            """UPDATE albums SET
-                                discogs_master_id = ?,
-                                artist = ?,
-                                title = ?,
-                                release_year = ?,
-                                cover_image_url = ?,
-                                genres = ?,
-                                styles = ?,
-                                format = ?,
-                                discogs_url = ?,
-                                master_url = ?,
-                                is_removed = 0,
-                                updated_at = CURRENT_TIMESTAMP
-                            WHERE discogs_release_id = ?""",
-                            (
-                                release["discogs_master_id"],
-                                release["artist"],
-                                release["title"],
-                                release["release_year"],
-                                release["cover_image_url"],
-                                release["genres"],
-                                release["styles"],
-                                release["format"],
-                                release["discogs_url"],
-                                release["master_url"],
-                                release["discogs_release_id"],
-                            ),
-                        )
                     updated += 1
 
             if page >= total_pages:
@@ -226,22 +257,32 @@ def sync_collection(progress_callback=None):
             page += 1
             time.sleep(DISCOGS_RATE_LIMIT_DELAY)
 
-        # Mark albums removed from Discogs (but don't delete history)
-        removed_ids = existing_ids - fetched_ids
-        if removed_ids:
-            placeholders = ",".join("?" for _ in removed_ids)
+        # Mark albums removed from Discogs (but don't delete history). If
+        # Discogs handed back nothing at all, that's a glitch or a wrong
+        # username, not an empty collection, so don't wipe everything.
+        removed_album_ids = (
+            {existing[rid] for rid in existing.keys() - fetched_ids} if fetched_ids else set()
+        )
+        if removed_album_ids:
+            placeholders = ",".join("?" for _ in removed_album_ids)
             cursor.execute(
                 f"""UPDATE albums SET is_removed = 1, updated_at = CURRENT_TIMESTAMP
-                    WHERE discogs_release_id IN ({placeholders})""",
-                list(removed_ids),
+                    WHERE id IN ({placeholders})""",
+                list(removed_album_ids),
             )
-            removed = len(removed_ids)
+
+        carried_over = _carry_over_replaced_pressings(cursor, removed_album_ids, added_album_ids)
+        added -= carried_over
+        removed = len(removed_album_ids) - carried_over
 
         # Log the sync
         cursor.execute(
-            """INSERT INTO sync_log (sync_type, albums_added, albums_updated, albums_removed)
-               VALUES ('discogs', ?, ?, ?)""",
-            (added, updated, removed),
+            """INSERT INTO sync_log (sync_type, albums_added, albums_updated, albums_removed, notes)
+               VALUES ('discogs', ?, ?, ?, ?)""",
+            (
+                added, updated, removed,
+                f"{carried_over} replaced pressings carried over" if carried_over else None,
+            ),
         )
 
         conn.commit()
@@ -250,6 +291,7 @@ def sync_collection(progress_callback=None):
             "added": added,
             "updated": updated,
             "removed": removed,
+            "replaced": carried_over,
             "total_fetched": len(fetched_ids),
         }
 

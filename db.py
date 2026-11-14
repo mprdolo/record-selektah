@@ -100,7 +100,8 @@ def init_db():
             ON big_board_entries(album_id);
 
         -- Remembers Big Board entry/album pairings the user explicitly
-        -- rejected (via "I don't own this album"), so re-syncs don't
+        -- rejected ("I don't own this album", or relinking the entry to a
+        -- different album), so re-syncs don't
         -- re-apply the same incorrect fuzzy match. Keyed by normalized
         -- artist/title since entries are deleted and reinserted on sync.
         CREATE TABLE IF NOT EXISTS big_board_rejected_matches (
@@ -116,7 +117,16 @@ def init_db():
     migrations = [
         ("albums", "master_id_override", "ALTER TABLE albums ADD COLUMN master_id_override INTEGER"),
         ("albums", "master_year_override", "ALTER TABLE albums ADD COLUMN master_year_override INTEGER"),
+        # A Discogs release chosen by hand to describe this album (link, year,
+        # cover). discogs_release_id always stays the release that's actually
+        # in the Discogs collection, so syncs keep recognising the album.
+        ("albums", "release_id_override", "ALTER TABLE albums ADD COLUMN release_id_override INTEGER"),
         ("big_board_entries", "via_album_id", "ALTER TABLE big_board_entries ADD COLUMN via_album_id INTEGER"),
+        # The entry's artist/title exactly as they appear in the CSV. Re-syncs
+        # and remembered rejections key off these, so editing an entry's
+        # displayed text in the app doesn't orphan its link.
+        ("big_board_entries", "source_artist", "ALTER TABLE big_board_entries ADD COLUMN source_artist TEXT"),
+        ("big_board_entries", "source_title", "ALTER TABLE big_board_entries ADD COLUMN source_title TEXT"),
     ]
     for table, column, sql in migrations:
         try:

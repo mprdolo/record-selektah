@@ -101,6 +101,8 @@ Talking Heads,Remain in Light,1980,x
 
 Click **Sync Data** > **"Import Big Board CSV"**. Unmatched entries can be manually linked to your collection in the Big Board Explorer.
 
+Corrections are remembered: if you unlink a wrong match ("I don't own this album") or relink an entry to a different album, re-importing the CSV won't put the wrong match back. Links you make by hand are also kept when an entry moves to a different rank.
+
 ## Fetching Master Years (Optional)
 
 Click **Sync Data** > **"Fetch Master Release Years"** to backfill original release years from Discogs master releases. This ensures albums display the original year rather than the year of your specific pressing.
@@ -114,6 +116,15 @@ Click **Sync Data** > **"Fetch Master Release Years"** to backfill original rele
 | **Library** | Browse your full collection with sort and search. |
 | **Stats** | View most-played albums by play count. |
 | **Excluded** | Manage albums excluded from random selection. |
+
+## Running the Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+The tests use a throwaway database, so they never touch your real data in `data/`.
 
 ## Tech Stack
 
