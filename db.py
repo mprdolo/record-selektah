@@ -127,6 +127,9 @@ def init_db():
         # displayed text in the app doesn't orphan its link.
         ("big_board_entries", "source_artist", "ALTER TABLE big_board_entries ADD COLUMN source_artist TEXT"),
         ("big_board_entries", "source_title", "ALTER TABLE big_board_entries ADD COLUMN source_title TEXT"),
+        # 1 for entries added from the app that the spreadsheet doesn't have
+        # yet, so a re-import doesn't drop them.
+        ("big_board_entries", "added_in_app", "ALTER TABLE big_board_entries ADD COLUMN added_in_app INTEGER DEFAULT 0"),
     ]
     for table, column, sql in migrations:
         try:

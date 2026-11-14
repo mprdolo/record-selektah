@@ -261,6 +261,78 @@ def unreject_match(cursor, artist, title, album_id):
     )
 
 
+def _app_order_edited(cursor):
+    cursor.execute("SELECT value FROM settings WHERE key = 'bigboard_order_edited'")
+    row = cursor.fetchone()
+    return bool(row and row["value"])
+
+
+def mark_app_order_edited(cursor):
+    """Record that the Big Board order was changed in the app since the last import."""
+    cursor.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('bigboard_order_edited', '1')"
+    )
+
+
+def _merge_order(csv_entries, old_entries, old_by_key, app_order_edited):
+    """
+    Decide the Big Board order after an import.
+
+    If you haven't reordered or added anything in the app since the last
+    import, the spreadsheet's order is used as-is.
+
+    If you have, your app order wins for every entry that's already on the
+    board. Entries that are new in the sheet are slotted in right after the
+    entry they follow in the sheet (or at the top if they come first).
+    Entries removed from the sheet are dropped, except ones you added in the
+    app that haven't made it into the sheet yet.
+
+    Returns (ordered entries, short human-readable note). Each returned entry
+    has artist/title/year, source_artist/source_title, key and added_in_app.
+    """
+    for e in csv_entries:
+        e["source_artist"], e["source_title"] = e["artist"], e["title"]
+        old = old_by_key.get(entry_key(e["artist"], e["title"]))
+        e["key"] = old["key"] if old else entry_key(e["artist"], e["title"])
+
+    if not app_order_edited:
+        return csv_entries, "Order taken from the spreadsheet."
+
+    csv_by_key = {e["key"]: e for e in csv_entries}
+    ordered = []
+    placed = set()
+    for old in old_entries:
+        if old["key"] in placed:
+            continue
+        if old["key"] in csv_by_key:
+            ordered.append(csv_by_key[old["key"]])
+            placed.add(old["key"])
+        elif old["added_in_app"]:
+            ordered.append({
+                "artist": old["artist"], "title": old["title"], "year": old["year"],
+                "owned": False, "source_artist": old["key_artist"],
+                "source_title": old["key_title"], "key": old["key"], "added_in_app": True,
+            })
+            placed.add(old["key"])
+
+    new_count = 0
+    previous_key = None
+    for e in csv_entries:
+        if e["key"] not in placed:
+            at = 0
+            if previous_key is not None:
+                at = next(i for i, o in enumerate(ordered) if o["key"] == previous_key) + 1
+            ordered.insert(at, e)
+            placed.add(e["key"])
+            new_count += 1
+        previous_key = e["key"]
+
+    note = "Kept the order you set in the app"
+    if new_count:
+        note += f" and slotted in {new_count} new entr{'y' if new_count == 1 else 'ies'} from the sheet"
+    return ordered, note + "."
+
+
 def _get_active_csv_path():
     """Return CSV path from DB settings if set, otherwise fall back to config."""
     try:
@@ -311,22 +383,27 @@ def sync_big_board(csv_path=None, progress_callback=None):
     albums = cursor.fetchall()
     live_album_ids = {album["id"] for album in albums}
 
-    # Snapshot existing entries so we can preserve manual matches and via links.
-    # Key by the entry's CSV text (source_*), not its displayed text, so an
-    # entry edited in the app still finds its old match. Fall back to the
-    # displayed text for rows imported before source_* existed.
+    # Snapshot existing entries so we can preserve manual matches, via links
+    # and the order you set in the app. Key by the entry's CSV text
+    # (source_*), not its displayed text, so an entry edited in the app still
+    # finds its old match; the displayed text is also indexed so a sheet that
+    # was updated from the app's export still lines up.
     cursor.execute(
-        """SELECT rank, COALESCE(source_artist, artist) AS key_artist,
-                  COALESCE(source_title, title) AS key_title,
-                  album_id, via_album_id
+        """SELECT rank, artist, title, year, album_id, via_album_id, added_in_app,
+                  COALESCE(source_artist, artist) AS key_artist,
+                  COALESCE(source_title, title) AS key_title
            FROM big_board_entries ORDER BY rank"""
     )
+    old_entries = [dict(row) for row in cursor.fetchall()]
     old_by_key = {}
-    for row in cursor.fetchall():
-        key = entry_key(row["key_artist"], row["key_title"])
+    for old in old_entries:
+        old["key"] = entry_key(old["key_artist"], old["key_title"])
         # Keep the first (best-ranked) entry per key
-        if key not in old_by_key:
-            old_by_key[key] = dict(row)
+        old_by_key.setdefault(old["key"], old)
+    for old in old_entries:
+        old_by_key.setdefault(entry_key(old["artist"], old["title"]), old)
+
+    entries, order_note = _merge_order(entries, old_entries, old_by_key, _app_order_edited(cursor))
 
     # Load matches the user explicitly rejected (unlinked, or relinked to a
     # different album) so re-syncs never reapply the same wrong association.
@@ -339,7 +416,7 @@ def sync_big_board(csv_path=None, progress_callback=None):
     if progress_callback:
         progress_callback(f"Matching {total} Big Board entries...", 0, total)
 
-    keys = [entry_key(e["artist"], e["title"]) for e in entries]
+    keys = [e["key"] for e in entries]
     album_ids = [None] * total
     # Each album can only be linked to one entry.
     claimed_album_ids = set()
@@ -389,16 +466,35 @@ def sync_big_board(csv_path=None, progress_callback=None):
     for i, entry in enumerate(entries):
         old = old_by_key.get(keys[i])
         via_album_id = old["via_album_id"] if old else None
-        # The CSV is the source of truth for artist/title/year.
+        # The CSV is the source of truth for artist/title/year. Entries added
+        # in the app that aren't in the sheet yet keep their own values.
         cursor.execute(
             """INSERT INTO big_board_entries
-               (rank, artist, title, year, album_id, via_album_id, source_artist, source_title)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               (rank, artist, title, year, album_id, via_album_id,
+                source_artist, source_title, added_in_app)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                entry["rank"], entry["artist"], entry["title"], entry["year"],
-                album_ids[i], via_album_id, entry["artist"], entry["title"],
+                i + 1, entry["artist"], entry["title"], entry["year"],
+                album_ids[i], via_album_id, entry["source_artist"], entry["source_title"],
+                1 if entry.get("added_in_app") else 0,
             ),
         )
+
+    # If an entry is now known by different text (you edited it in the app and
+    # pasted the export into the sheet), carry its remembered rejections over
+    # to the new text so they keep applying on later imports.
+    for i, entry in enumerate(entries):
+        new_key = entry_key(entry["source_artist"], entry["source_title"])
+        if new_key != keys[i]:
+            cursor.execute(
+                """UPDATE OR IGNORE big_board_rejected_matches
+                   SET entry_artist_key = ?, entry_title_key = ?
+                   WHERE entry_artist_key = ? AND entry_title_key = ?""",
+                (*new_key, *keys[i]),
+            )
+
+    # The app's order is now in sync with this import.
+    cursor.execute("DELETE FROM settings WHERE key = 'bigboard_order_edited'")
 
     matched = total - len(unmatched)
 
@@ -418,6 +514,7 @@ def sync_big_board(csv_path=None, progress_callback=None):
         "unmatched_count": len(unmatched),
         "unmatched": unmatched,
         "duplicates_skipped": duplicates_skipped,
+        "order_note": order_note,
     }
 
     dupe_note = f" ({duplicates_skipped} duplicates skipped.)" if duplicates_skipped else ""

@@ -1026,6 +1026,246 @@ body {
     gap: 12px;
 }
 
+/* ---- Big Board rank list (drag to reorder) ---- */
+
+.bb-rank-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    margin-bottom: 18px;
+}
+
+.bb-rank-hint {
+    font-size: 0.85rem;
+    color: var(--charcoal-light);
+}
+
+.bb-rank-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.btn-bb-action {
+    background: #fff;
+    color: var(--charcoal);
+    border: 1px solid var(--cream-dark);
+    text-decoration: none;
+}
+
+.btn-bb-action:hover {
+    border-color: var(--gold);
+}
+
+.bb-add-form {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: #fff;
+    padding: 12px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.bb-add-form.hidden {
+    display: none;
+}
+
+.bb-add-form input {
+    font: inherit;
+    font-size: 0.9rem;
+    padding: 7px 10px;
+    border: 1px solid var(--cream-dark);
+    border-radius: 6px;
+    min-width: 0;
+}
+
+.bb-add-form input[name="artist"],
+.bb-add-form input[name="title"] {
+    flex: 1 1 180px;
+}
+
+.bb-add-form input[name="year"] {
+    width: 90px;
+}
+
+.bb-add-form input[name="rank"] {
+    width: 150px;
+}
+
+.bb-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 8px;
+}
+
+.bb-row {
+    display: grid;
+    grid-template-columns: auto 48px 40px minmax(0, 1fr) auto 90px;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+    border-radius: 6px;
+    padding: 6px 12px 6px 8px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    cursor: pointer;
+    user-select: none;
+    transition: box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.bb-list:not(.reorderable) .bb-row {
+    grid-template-columns: 48px 40px minmax(0, 1fr) auto 90px;
+}
+
+.bb-list.reorderable .bb-row {
+    cursor: grab;
+}
+
+.bb-row:hover {
+    box-shadow: var(--shadow);
+}
+
+.bb-row.unowned .bb-row-cover,
+.bb-row.unowned .bb-row-text,
+.bb-row.unowned .bb-row-year {
+    opacity: 0.5;
+}
+
+.bb-row-handle {
+    color: #b7bcc6;
+    font-size: 0.9rem;
+    letter-spacing: -0.2em;
+    padding-right: 2px;
+}
+
+.bb-row:hover .bb-row-handle {
+    color: var(--charcoal);
+}
+
+.bb-row-rank {
+    font: inherit;
+    font-weight: 700;
+    font-size: 0.85rem;
+    min-width: 40px;
+    height: 28px;
+    border: none;
+    border-radius: 100px;
+    background: var(--gold);
+    color: var(--brown);
+    cursor: text;
+}
+
+.bb-row-rank:disabled {
+    cursor: inherit;
+}
+
+.bb-row.unowned .bb-row-rank {
+    background: var(--cream-dark);
+}
+
+.bb-row-rank-input {
+    font: inherit;
+    font-weight: 700;
+    font-size: 0.85rem;
+    width: 56px;
+    height: 28px;
+    padding: 0 6px;
+    border: 2px solid var(--gold);
+    border-radius: 6px;
+}
+
+.bb-row-cover {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 3px;
+    background: var(--cream-dark);
+}
+
+.bb-row-cover-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9aa0ab;
+    font-weight: 700;
+}
+
+.bb-row-text {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bb-row-artist {
+    font-weight: 700;
+}
+
+.bb-row-sep {
+    color: var(--charcoal-light);
+    margin: 0 4px;
+}
+
+.bb-row-title {
+    color: var(--charcoal-light);
+}
+
+.bb-row-year {
+    font-size: 0.85rem;
+    color: var(--gold-text);
+    font-weight: 600;
+}
+
+.bb-row-badge {
+    justify-self: end;
+}
+
+.bb-row-ghost {
+    opacity: 0.35;
+    background: var(--gold-light);
+}
+
+.bb-row-chosen {
+    box-shadow: var(--shadow-lg);
+}
+
+.bb-row-drag {
+    cursor: grabbing;
+    box-shadow: var(--shadow-lg);
+}
+
+.bb-row-flash {
+    animation: bbRowFlash 1.6s ease-out;
+}
+
+@keyframes bbRowFlash {
+    0%, 30% { background-color: var(--gold-light); }
+    100% { background-color: #fff; }
+}
+
+@media (max-width: 600px) {
+    .bb-row {
+        grid-template-columns: auto 44px 36px minmax(0, 1fr);
+        gap: 8px;
+    }
+    .bb-list:not(.reorderable) .bb-row {
+        grid-template-columns: 44px 36px minmax(0, 1fr);
+    }
+    .bb-row-year,
+    .bb-row-badge {
+        display: none;
+    }
+    .bb-row-cover {
+        width: 36px;
+        height: 36px;
+    }
+}
+
 .bb-card {
     background: #fff;
     border-radius: var(--radius);

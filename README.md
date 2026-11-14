@@ -103,6 +103,14 @@ Click **Sync Data** > **"Import Big Board CSV"**. Unmatched entries can be manua
 
 Corrections are remembered: if you unlink a wrong match ("I don't own this album") or relink an entry to a different album, re-importing the CSV won't put the wrong match back. Links you make by hand are also kept when an entry moves to a different rank.
 
+### Reordering in the App
+
+On the Big Board's **Rank** tab, drag a record up or down to rerank it, or click its number and type a new rank. **+ Add record** adds a new entry (it's linked to your copy automatically if you own it).
+
+To bring your spreadsheet up to date, click **Copy for Google Sheets**, then click cell **A1** in the sheet and paste. Only columns A–D (Artist, Title, Year, Owned) are replaced, so any formulas to the right are untouched. **Download CSV** saves the same thing as a file.
+
+When you re-import, the app's order wins: entries already on the board stay where you put them, new rows in the spreadsheet are slotted in after the entry they follow there, and rows you deleted from the spreadsheet are removed. Records you added in the app stay until the spreadsheet has them too. If you haven't changed anything in the app since the last import, the spreadsheet's order is used as-is.
+
 ## Fetching Master Years (Optional)
 
 Click **Sync Data** > **"Fetch Master Release Years"** to backfill original release years from Discogs master releases. This ensures albums display the original year rather than the year of your specific pressing.
