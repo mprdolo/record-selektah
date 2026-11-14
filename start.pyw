@@ -1,4 +1,4 @@
-"""Silent launcher for Record Selektah — no console window."""
+"""Silent launcher for Public Diplomacy Records — no console window."""
 import os
 import sys
 import webbrowser
