@@ -1026,6 +1026,232 @@ body {
     gap: 12px;
 }
 
+/* ---- Taste Test ---- */
+
+.modal.modal-taste {
+    max-width: 860px;
+    width: 94%;
+}
+
+.taste-progress {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--charcoal-light);
+    margin-left: 8px;
+}
+
+.taste-loading {
+    text-align: center;
+    padding: 40px 0;
+    color: var(--charcoal-light);
+}
+
+.taste-prompt {
+    text-align: center;
+    font-family: var(--font-brand);
+    font-weight: 700;
+    font-size: 1.3rem;
+    margin-bottom: 16px;
+}
+
+.taste-pair {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: stretch;
+    gap: 16px;
+}
+
+.taste-vs {
+    align-self: center;
+    font-weight: 700;
+    color: var(--charcoal-light);
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+}
+
+.taste-card {
+    font: inherit;
+    text-align: center;
+    background: var(--cream);
+    border: 3px solid transparent;
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.15s ease, transform 0.15s ease, opacity 0.3s ease;
+}
+
+.taste-card:hover {
+    border-color: var(--gold);
+    transform: translateY(-2px);
+}
+
+.taste-card.chosen {
+    border-color: var(--gold);
+    background: rgba(120, 169, 71, 0.12);
+}
+
+.taste-card.not-chosen {
+    opacity: 0.45;
+}
+
+.taste-cover {
+    width: 100%;
+    max-width: 260px;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: var(--radius);
+    background: var(--cream-dark);
+    margin-bottom: 8px;
+    box-shadow: var(--shadow);
+}
+
+.taste-cover-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: #9aa0ab;
+}
+
+.taste-artist {
+    font-weight: 700;
+    font-size: 1.05rem;
+}
+
+.taste-title {
+    color: var(--charcoal-light);
+}
+
+.taste-meta {
+    font-size: 0.85rem;
+    color: var(--gold-text);
+    font-weight: 600;
+}
+
+.taste-tags {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+/* Ranks stay hidden until you've chosen, so they don't sway the answer. */
+.taste-rank {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: var(--gold);
+    color: var(--brown);
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 3px 10px;
+    border-radius: 100px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.revealed .taste-rank {
+    opacity: 1;
+}
+
+.taste-key {
+    font-size: 0.7rem;
+    color: #9aa0ab;
+    margin-top: 6px;
+}
+
+.taste-outcome {
+    text-align: center;
+    min-height: 1.5em;
+    margin: 16px 0 4px;
+    color: var(--charcoal-light);
+    font-weight: 600;
+}
+
+.taste-outcome.moved {
+    color: var(--gold-text);
+}
+
+.taste-outcome.error {
+    color: #c0392b;
+}
+
+.taste-footer {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.taste-summary-line {
+    text-align: center;
+    color: var(--charcoal-light);
+    margin-bottom: 14px;
+}
+
+.taste-summary {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.taste-summary-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 12px;
+    padding: 8px 12px;
+    background: var(--cream);
+    border-radius: 6px;
+}
+
+.taste-summary-pick {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.taste-summary-over {
+    grid-column: 1;
+    font-size: 0.8rem;
+    color: var(--charcoal-light);
+}
+
+.taste-summary-move {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    font-size: 0.85rem;
+    color: var(--charcoal-light);
+    white-space: nowrap;
+}
+
+.taste-summary-move.up {
+    color: var(--gold-text);
+    font-weight: 700;
+}
+
+@media (max-width: 600px) {
+    .taste-pair {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    .taste-vs,
+    .taste-key {
+        display: none;
+    }
+    .taste-card {
+        padding: 10px;
+    }
+}
+
 /* ---- Big Board rank list (drag to reorder) ---- */
 
 .bb-rank-toolbar {

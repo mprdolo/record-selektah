@@ -4,6 +4,7 @@ from flask import Flask, Response, jsonify, request, render_template
 from config import SECRET_KEY
 from db import init_db, get_db_connection
 from selector import select_next_album
+from bigboard_ranks import move_entry, shift_ranks
 from bigboard_sync import mark_app_order_edited, reject_match, unreject_match
 
 app = Flask(__name__)
@@ -1059,16 +1060,6 @@ def set_bigboard_via(rank):
         conn.close()
 
 
-def _shift_ranks(cursor, first, last, delta):
-    """Shift ranks first..last (inclusive) by delta without tripping the
-    unique index on rank: park them at negative ranks first."""
-    cursor.execute(
-        "UPDATE big_board_entries SET rank = -(rank + ?) WHERE rank BETWEEN ? AND ?",
-        (delta, first, last),
-    )
-    cursor.execute("UPDATE big_board_entries SET rank = -rank WHERE rank < 0")
-
-
 @app.route("/api/bigboard/move", methods=["POST"])
 def move_bigboard_entry():
     """Move the entry at `rank` to `to_rank`, shifting the entries between."""
@@ -1092,12 +1083,7 @@ def move_bigboard_entry():
         if to_rank == rank:
             return api_response(message="No change.")
 
-        cursor.execute("UPDATE big_board_entries SET rank = 0 WHERE id = ?", (row["id"],))
-        if to_rank < rank:
-            _shift_ranks(cursor, to_rank, rank - 1, +1)
-        else:
-            _shift_ranks(cursor, rank + 1, to_rank, -1)
-        cursor.execute("UPDATE big_board_entries SET rank = ? WHERE id = ?", (to_rank, row["id"]))
+        move_entry(cursor, row["id"], rank, to_rank)
         mark_app_order_edited(cursor)
         conn.commit()
         return api_response(message=f"Moved #{rank} to #{to_rank}.", data={"rank": to_rank})
@@ -1164,7 +1150,7 @@ def add_bigboard_entry():
             rank = total + 1
         rank = max(1, min(rank, total + 1))
         if rank <= total:
-            _shift_ranks(cursor, rank, total, +1)
+            shift_ranks(cursor, rank, total, +1)
         cursor.execute(
             """INSERT INTO big_board_entries
                (rank, artist, title, year, album_id, source_artist, source_title, added_in_app)
@@ -1177,6 +1163,53 @@ def add_bigboard_entry():
             message=f"Added to the Big Board at #{rank}.",
             data={"rank": rank, "album_id": album_id},
         )
+    finally:
+        conn.close()
+
+
+@app.route("/api/taste-test/pairs")
+def taste_test_pairs():
+    """A round of random album pairs to choose between."""
+    from taste_test import PAIRS_PER_ROUND, pick_pairs
+
+    conn = get_db_connection()
+    try:
+        pairs = pick_pairs(conn.cursor(), PAIRS_PER_ROUND)
+        for pair in pairs:
+            for e in pair:
+                e["genres"] = json.loads(e["genres"]) if e["genres"] else []
+                e["owned"] = bool(e["owned"])
+        if not pairs:
+            return api_response(
+                False, message="Import your Big Board first: it needs at least two albums.",
+                status_code=400,
+            )
+        return api_response(data={"pairs": pairs})
+    finally:
+        conn.close()
+
+
+@app.route("/api/taste-test/vote", methods=["POST"])
+def taste_test_vote():
+    """Record which album of a pair you prefer and apply its boost."""
+    from taste_test import record_vote
+
+    body = request.get_json(silent=True) or {}
+    try:
+        winner_id = int(body.get("winner_id"))
+        loser_id = int(body.get("loser_id"))
+    except (TypeError, ValueError):
+        return api_response(False, message="winner_id and loser_id are required.", status_code=400)
+
+    conn = get_db_connection()
+    try:
+        result = record_vote(conn.cursor(), winner_id, loser_id)
+        if result is None:
+            return api_response(
+                False, message="Those albums aren't on the Big Board any more.", status_code=404
+            )
+        conn.commit()
+        return api_response(data=result)
     finally:
         conn.close()
 

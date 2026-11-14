@@ -111,6 +111,15 @@ To bring your spreadsheet up to date, click **Copy for Google Sheets**, then cli
 
 When you re-import, the app's order wins: entries already on the board stay where you put them, new rows in the spreadsheet are slotted in after the entry they follow there, and rows you deleted from the spreadsheet are removed. Records you added in the app stay until the spreadsheet has them too. If you haven't changed anything in the app since the last import, the spreadsheet's order is used as-is.
 
+### Taste Test
+
+Click **Taste Test** in the header for a round of ten random pairs of Big Board albums. Pick the one you prefer (click it, or use the ← / → keys); ranks stay hidden until you choose.
+
+- If you pick the album that's already ranked higher, nothing changes.
+- If you pick the lower-ranked one, it climbs part of the way toward the other, never past it. The climb grows with the gap, but slowly (about 1.5 × the square root of the gap): a gap of 10 moves it 5 places, 50 moves it 11, 200 moves it 22, 600 moves it 37. Albums you keep picking keep climbing; a one-off whim barely registers.
+
+Tune `BOOST_FACTOR` in `taste_test.py` to make each answer count for more or less. Every answer is saved in the `taste_test_votes` table. Like dragging, taste-test moves count as reordering in the app, so remember to **Copy for Google Sheets** afterwards.
+
 ## Fetching Master Years (Optional)
 
 Click **Sync Data** > **"Fetch Master Release Years"** to backfill original release years from Discogs master releases. This ensures albums display the original year rather than the year of your specific pressing.
