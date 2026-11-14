@@ -345,15 +345,21 @@ def bigboard():
             """SELECT bb.rank, bb.artist, bb.title, bb.year,
                       bb.album_id, bb.via_album_id,
                       a.id AS joined_album_id,
-                      a.cover_image_url, a.genres,
+                      a.cover_image_url, a.genres, a.styles,
                       va.id AS via_joined_id,
                       va.cover_image_url AS via_cover_image_url,
                       va.genres AS via_genres,
+                      va.styles AS via_styles,
+                      pl.play_count, pl.last_played,
                       va.artist AS via_album_artist,
                       va.title AS via_album_title
                FROM big_board_entries bb
                LEFT JOIN albums a ON a.id = bb.album_id AND a.is_removed = 0
                LEFT JOIN albums va ON va.id = bb.via_album_id AND va.is_removed = 0
+               LEFT JOIN (
+                   SELECT album_id, COUNT(*) AS play_count, MAX(selected_at) AS last_played
+                   FROM listens WHERE did_listen = 1 GROUP BY album_id
+               ) pl ON pl.album_id = COALESCE(a.id, va.id)
                ORDER BY bb.rank"""
         )
         rows = cursor.fetchall()
@@ -367,6 +373,8 @@ def bigboard():
             cover = row["cover_image_url"] if direct else (row["via_cover_image_url"] if via else None)
             raw_genres = row["genres"] if direct else (row["via_genres"] if via else None)
             genres = json.loads(raw_genres) if raw_genres else []
+            raw_styles = row["styles"] if direct else (row["via_styles"] if via else None)
+            styles = json.loads(raw_styles) if raw_styles else []
             entry = {
                 "rank": row["rank"],
                 "artist": row["artist"],
@@ -374,6 +382,9 @@ def bigboard():
                 "year": row["year"],
                 "cover_image_url": cover if owned else None,
                 "genres": genres if owned else [],
+                "styles": styles if owned else [],
+                "play_count": (row["play_count"] or 0) if owned else 0,
+                "last_played": row["last_played"] if owned else None,
                 "owned": owned,
                 "album_id": row["album_id"] if direct else None,
                 "via_album_id": row["via_album_id"] if via else None,
@@ -1180,6 +1191,10 @@ def _bigboard_export_rows():
                FROM big_board_entries bb
                LEFT JOIN albums a ON a.id = bb.album_id AND a.is_removed = 0
                LEFT JOIN albums va ON va.id = bb.via_album_id AND va.is_removed = 0
+               LEFT JOIN (
+                   SELECT album_id, COUNT(*) AS play_count, MAX(selected_at) AS last_played
+                   FROM listens WHERE did_listen = 1 GROUP BY album_id
+               ) pl ON pl.album_id = COALESCE(a.id, va.id)
                ORDER BY bb.rank"""
         )
         return [

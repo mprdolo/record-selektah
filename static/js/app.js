@@ -1711,16 +1711,38 @@
             badgeHtml = '<span class="bb-owned-badge">Owned</span>';
         }
 
+        // Genres first, then the more specific Discogs styles, without repeats.
+        const tags = [...new Set([...(entry.genres || []), ...(entry.styles || [])])];
+        const shownTags = tags.slice(0, 5);
+        const moreTags = tags.length - shownTags.length;
+        const tagsHtml = entry.owned
+            ? shownTags.map((t, i) => `<span class="bb-tag${i < (entry.genres || []).length ? ' bb-tag-genre' : ''}">${esc(t)}</span>`).join('')
+              + (moreTags > 0 ? `<span class="bb-tag bb-tag-more" title="${escapeAttr(tags.slice(5).join(', '))}">+${moreTags}</span>` : '')
+            : '<span class="bb-row-missing">Not in your collection</span>';
+
+        let playsHtml = '';
+        if (entry.owned) {
+            playsHtml = entry.play_count
+                ? `<span class="bb-row-plays" title="Last played ${escapeAttr(formatShortDate(entry.last_played))}">Played ${entry.play_count}×</span>`
+                : '<span class="bb-row-plays bb-row-plays-none">Not played yet</span>';
+        }
+
         li.innerHTML = `
             ${canReorder ? '<span class="bb-row-handle" aria-hidden="true">⋮⋮</span>' : ''}
             <button class="bb-row-rank" title="${canReorder ? 'Click to type a new rank' : ''}">${entry.rank}</button>
             ${coverHtml}
             <div class="bb-row-text">
-                <span class="bb-row-artist">${esc(entry.artist)}</span>
-                <span class="bb-row-sep">—</span>
-                <span class="bb-row-title">${esc(entry.title)}</span>
+                <div class="bb-row-line">
+                    <span class="bb-row-artist">${esc(entry.artist)}</span>
+                    <span class="bb-row-sep">—</span>
+                    <span class="bb-row-title">${esc(entry.title)}</span>
+                </div>
+                <div class="bb-row-tags">${tagsHtml}</div>
             </div>
-            <span class="bb-row-year">${entry.year || ''}</span>
+            <div class="bb-row-meta">
+                <span class="bb-row-year">${entry.year || ''}</span>
+                ${playsHtml}
+            </div>
             <span class="bb-row-badge">${badgeHtml}</span>
         `;
 
@@ -1772,6 +1794,12 @@
         });
         input.addEventListener('blur', () => finish(true));
         input.addEventListener('click', (ev) => ev.stopPropagation());
+    }
+
+    function formatShortDate(ts) {
+        if (!ts) return '';
+        const d = new Date(ts.replace(' ', 'T') + 'Z');
+        return isNaN(d) ? ts : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     }
 
     async function onRankDrop(evt) {
