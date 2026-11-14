@@ -309,6 +309,12 @@ Talking Heads,Remain in Light,1980,x</code></pre>
                     <li>Unmatched entries can be manually linked to your collection in the <strong>Big Board Explorer</strong> by clicking on unowned cards.</li>
                     <li>Corrections stick: if you unlink a wrong match or relink an entry to a different album, re-importing won't bring the wrong match back.</li>
                 </ol>
+                <h4>Reordering in the app</h4>
+                <ul>
+                    <li>On the <strong>Rank</strong> tab, drag a record up or down, or click its number and type a new rank. <strong>+ Add record</strong> adds a new one.</li>
+                    <li>To bring your spreadsheet up to date, click <strong>Copy for Google Sheets</strong>, then click cell <strong>A1</strong> in the sheet and paste. Only columns A&ndash;D are replaced.</li>
+                    <li>When you re-import, the order you set in the app is kept and any new rows from the spreadsheet are slotted in after the record they follow there. If you haven't changed anything in the app since the last import, the spreadsheet's order is used.</li>
+                </ul>
             </div>
 
             <div class="help-block">
@@ -623,6 +629,7 @@ Talking Heads,Remain in Light,1980,x</code></pre>
     <!-- Toast notifications -->
     <div class="toast-container" id="toast-container"></div>
 
+    <script src="{{ url_for('static', filename='js/vendor/Sortable.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

@@ -1580,38 +1580,290 @@
     // Make cover look clickable
     albumCover.style.cursor = 'pointer';
 
-    // --- Rank View ---
+    // --- Rank View (full-width list you can drag to reorder) ---
+
+    let rankSortables = [];
+    let suppressRowClickUntil = 0;
 
     function renderRankView(data) {
         const sorted = [...data].sort((a, b) => a.rank - b.rank);
+        // Reordering only makes sense when every entry is visible: with a
+        // filter or search on, the rows around a dropped entry aren't its
+        // real neighbours.
+        const canReorder = sorted.length === bigboardData.length;
 
-        // Group into tiers of 100
+        // Group into tiers of 100 for the jump buttons
         const tierSize = 100;
         const groups = {};
         sorted.forEach(e => {
             const tierStart = Math.floor((e.rank - 1) / tierSize) * tierSize + 1;
-            const tierEnd = tierStart + tierSize - 1;
-            const label = `${tierStart}–${tierEnd}`;
+            const label = `${tierStart}–${tierStart + tierSize - 1}`;
             if (!groups[label]) groups[label] = [];
             groups[label].push(e);
         });
-
-        const tierLabels = Object.keys(groups).sort((a, b) => {
-            return parseInt(a) - parseInt(b);
-        });
+        const tierLabels = Object.keys(groups).sort((a, b) => parseInt(a) - parseInt(b));
 
         buildJumpNav(tierLabels, 'bb-sec-');
+        rankSortables.forEach(s => s.destroy());
+        rankSortables = [];
         bigboardContent.innerHTML = '';
-
-        const summary = document.createElement('p');
-        summary.className = 'bb-rank-summary';
-        summary.textContent = `Showing ${sorted.length} of ${bigboardData.length} entries`;
-        bigboardContent.appendChild(summary);
+        bigboardContent.appendChild(buildRankToolbar(sorted.length, canReorder));
 
         tierLabels.forEach(label => {
-            const sectionId = 'bb-sec-' + label.replace(/[^a-zA-Z0-9]/g, '_');
-            bigboardContent.appendChild(createGroup(label, groups[label], sectionId));
+            const section = document.createElement('div');
+            section.className = 'bb-group';
+            section.id = 'bb-sec-' + label.replace(/[^a-zA-Z0-9]/g, '_');
+            section.innerHTML = `
+                <h3 class="bb-group-title">${esc(label)} <span class="bb-group-count">(${groups[label].length})</span></h3>
+                <ol class="bb-list${canReorder ? ' reorderable' : ''}"></ol>
+            `;
+            const list = section.querySelector('.bb-list');
+            groups[label].forEach(e => list.appendChild(createRankRow(e, canReorder)));
+            bigboardContent.appendChild(section);
+
+            if (canReorder && window.Sortable) {
+                rankSortables.push(Sortable.create(list, {
+                    group: 'bigboard',
+                    animation: 150,
+                    forceFallback: true,       // consistent dragging + page auto-scroll
+                    fallbackTolerance: 4,      // a small wiggle is still a click
+                    scroll: true,
+                    bubbleScroll: true,
+                    scrollSensitivity: 90,
+                    scrollSpeed: 18,
+                    filter: '.bb-row-rank-input',
+                    preventOnFilter: false,
+                    ghostClass: 'bb-row-ghost',
+                    chosenClass: 'bb-row-chosen',
+                    dragClass: 'bb-row-drag',
+                    onEnd: onRankDrop,
+                }));
+            }
         });
+    }
+
+    function buildRankToolbar(shown, canReorder) {
+        const bar = document.createElement('div');
+        bar.className = 'bb-rank-toolbar';
+        const hint = canReorder
+            ? 'Drag a record up or down to rerank it, or click its number to type a new rank.'
+            : `Showing ${shown} of ${bigboardData.length}. Clear the filter and search to reorder.`;
+        bar.innerHTML = `
+            <p class="bb-rank-hint">${esc(hint)}</p>
+            <div class="bb-rank-actions">
+                <button class="btn btn-sm btn-bb-action" id="btn-bb-add">+ Add record</button>
+                <button class="btn btn-sm btn-bb-action" id="btn-bb-copy" title="Copy Artist, Title, Year, Owned in this order, ready to paste at cell A1 of your spreadsheet">Copy for Google Sheets</button>
+                <a class="btn btn-sm btn-bb-action btn-bb-download" href="/api/bigboard/export?format=csv" download="big_board.csv">Download CSV</a>
+            </div>
+            <form class="bb-add-form hidden" id="bb-add-form" autocomplete="off">
+                <input type="text" name="artist" placeholder="Artist" required>
+                <input type="text" name="title" placeholder="Album title" required>
+                <input type="number" name="year" placeholder="Year" min="1900" max="2099">
+                <input type="number" name="rank" placeholder="Rank (blank = last)" min="1">
+                <button type="submit" class="btn btn-sm btn-primary">Add</button>
+                <button type="button" class="btn btn-sm btn-bb-action" id="btn-bb-add-cancel">Cancel</button>
+            </form>
+        `;
+        const form = bar.querySelector('#bb-add-form');
+        bar.querySelector('#btn-bb-add').addEventListener('click', () => {
+            form.classList.toggle('hidden');
+            if (!form.classList.contains('hidden')) form.artist.focus();
+        });
+        bar.querySelector('#btn-bb-add-cancel').addEventListener('click', () => form.classList.add('hidden'));
+        form.addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            const submit = form.querySelector('button[type="submit"]');
+            submit.disabled = true;
+            try {
+                const resp = await api('/api/bigboard/entries', 'POST', {
+                    artist: form.artist.value,
+                    title: form.title.value,
+                    year: form.year.value,
+                    rank: form.rank.value,
+                });
+                const matched = resp.data && resp.data.album_id
+                    ? ' Linked to your copy in the collection.' : '';
+                showToast(resp.message + matched);
+                await reloadBigBoardKeepingScroll();
+                scrollToRank(resp.data.rank);
+            } catch (err) {
+                showToast(err.message, 'error');
+                submit.disabled = false;
+            }
+        });
+        bar.querySelector('#btn-bb-copy').addEventListener('click', copyBigBoardForSheets);
+        return bar;
+    }
+
+    function createRankRow(entry, canReorder) {
+        const li = document.createElement('li');
+        li.className = 'bb-row' + (entry.owned ? '' : ' unowned');
+        li.dataset.rank = entry.rank;
+
+        const coverHtml = entry.cover_image_url
+            ? `<img class="bb-row-cover" src="${escapeAttr(entry.cover_image_url)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
+            : `<div class="bb-row-cover bb-row-cover-empty">?</div>`;
+
+        let badgeHtml = '';
+        if (entry.via_album_id && entry.via_album_title) {
+            badgeHtml = `<span class="bb-via-badge" title="via ${escapeAttr(entry.via_album_artist + ' — ' + entry.via_album_title)}">via ${esc(entry.via_album_title)}</span>`;
+        } else if (entry.owned) {
+            badgeHtml = '<span class="bb-owned-badge">Owned</span>';
+        }
+
+        // Genres first, then the more specific Discogs styles, without repeats.
+        const tags = [...new Set([...(entry.genres || []), ...(entry.styles || [])])];
+        const shownTags = tags.slice(0, 5);
+        const moreTags = tags.length - shownTags.length;
+        const tagsHtml = entry.owned
+            ? shownTags.map((t, i) => `<span class="bb-tag${i < (entry.genres || []).length ? ' bb-tag-genre' : ''}">${esc(t)}</span>`).join('')
+              + (moreTags > 0 ? `<span class="bb-tag bb-tag-more" title="${escapeAttr(tags.slice(5).join(', '))}">+${moreTags}</span>` : '')
+            : '<span class="bb-row-missing">Not in your collection</span>';
+
+        let playsHtml = '';
+        if (entry.owned) {
+            playsHtml = entry.play_count
+                ? `<span class="bb-row-plays" title="Last played ${escapeAttr(formatShortDate(entry.last_played))}">Played ${entry.play_count}×</span>`
+                : '<span class="bb-row-plays bb-row-plays-none">Not played yet</span>';
+        }
+
+        li.innerHTML = `
+            ${canReorder ? '<span class="bb-row-handle" aria-hidden="true">⋮⋮</span>' : ''}
+            <button class="bb-row-rank" title="${canReorder ? 'Click to type a new rank' : ''}">${entry.rank}</button>
+            ${coverHtml}
+            <div class="bb-row-text">
+                <div class="bb-row-line">
+                    <span class="bb-row-artist">${esc(entry.artist)}</span>
+                    <span class="bb-row-sep">—</span>
+                    <span class="bb-row-title">${esc(entry.title)}</span>
+                </div>
+                <div class="bb-row-tags">${tagsHtml}</div>
+            </div>
+            <div class="bb-row-meta">
+                <span class="bb-row-year">${entry.year || ''}</span>
+                ${playsHtml}
+            </div>
+            <span class="bb-row-badge">${badgeHtml}</span>
+        `;
+
+        li.addEventListener('click', (ev) => {
+            if (Date.now() < suppressRowClickUntil) return;
+            if (ev.target.closest('.bb-row-rank, .bb-row-rank-input')) return;
+            if (entry.album_id) openDetailCard(entry.album_id);
+            else openMatchModal(entry);
+        });
+
+        const rankBtn = li.querySelector('.bb-row-rank');
+        if (canReorder) {
+            rankBtn.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                if (Date.now() < suppressRowClickUntil) return;
+                startRankEdit(rankBtn, entry.rank);
+            });
+        } else {
+            rankBtn.disabled = true;
+        }
+        return li;
+    }
+
+    function startRankEdit(rankBtn, rank) {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = 1;
+        input.max = bigboardData.length;
+        input.value = rank;
+        input.className = 'bb-row-rank-input';
+        rankBtn.replaceWith(input);
+        input.focus();
+        input.select();
+        let done = false;
+        const finish = async (save) => {
+            if (done) return;
+            done = true;
+            const to = parseInt(input.value, 10);
+            if (save && to && to !== rank) {
+                await moveBigBoardEntry(rank, to);
+                scrollToRank(Math.max(1, Math.min(to, bigboardData.length)));
+            } else {
+                input.replaceWith(rankBtn);
+            }
+        };
+        input.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') finish(true);
+            if (ev.key === 'Escape') finish(false);
+        });
+        input.addEventListener('blur', () => finish(true));
+        input.addEventListener('click', (ev) => ev.stopPropagation());
+    }
+
+    function formatShortDate(ts) {
+        if (!ts) return '';
+        const d = new Date(ts.replace(' ', 'T') + 'Z');
+        return isNaN(d) ? ts : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    async function onRankDrop(evt) {
+        suppressRowClickUntil = Date.now() + 300;
+        const rows = [...bigboardContent.querySelectorAll('.bb-row')];
+        const from = parseInt(evt.item.dataset.rank, 10);
+        const to = rows.indexOf(evt.item) + 1;
+        if (!to || to === from) return;
+        await moveBigBoardEntry(from, to);
+    }
+
+    async function moveBigBoardEntry(from, to) {
+        try {
+            const resp = await api('/api/bigboard/move', 'POST', { rank: from, to_rank: to });
+            showToast(resp.message);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+        await reloadBigBoardKeepingScroll();
+    }
+
+    async function reloadBigBoardKeepingScroll() {
+        const scrollY = window.scrollY;
+        try {
+            const resp = await api('/api/bigboard');
+            bigboardData = resp.data;
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+        renderBigBoard();
+        window.scrollTo(0, scrollY);
+    }
+
+    function scrollToRank(rank) {
+        const row = bigboardContent.querySelector(`.bb-row[data-rank="${rank}"]`);
+        if (!row) return;
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.classList.add('bb-row-flash');
+        setTimeout(() => row.classList.remove('bb-row-flash'), 1600);
+    }
+
+    async function copyBigBoardForSheets() {
+        try {
+            const resp = await fetch('/api/bigboard/export');
+            if (!resp.ok) throw new Error('Export failed.');
+            const tsv = await resp.text();
+            try {
+                await navigator.clipboard.writeText(tsv);
+            } catch (e) {
+                // Older browsers / no clipboard permission: fall back to a hidden textarea
+                const ta = document.createElement('textarea');
+                ta.value = tsv;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                ta.remove();
+            }
+            const rows = tsv ? tsv.split('\n').length : 0;
+            showToast(`Copied ${rows} rows. In your spreadsheet, click cell A1 and paste (Ctrl+V).`);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
     }
 
     // --- Big Board Match Modal ---

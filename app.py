@@ -1,10 +1,10 @@
 import json
 import threading
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, Response, jsonify, request, render_template
 from config import SECRET_KEY
 from db import init_db, get_db_connection
 from selector import select_next_album
-from bigboard_sync import reject_match, unreject_match
+from bigboard_sync import mark_app_order_edited, reject_match, unreject_match
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -345,15 +345,21 @@ def bigboard():
             """SELECT bb.rank, bb.artist, bb.title, bb.year,
                       bb.album_id, bb.via_album_id,
                       a.id AS joined_album_id,
-                      a.cover_image_url, a.genres,
+                      a.cover_image_url, a.genres, a.styles,
                       va.id AS via_joined_id,
                       va.cover_image_url AS via_cover_image_url,
                       va.genres AS via_genres,
+                      va.styles AS via_styles,
+                      pl.play_count, pl.last_played,
                       va.artist AS via_album_artist,
                       va.title AS via_album_title
                FROM big_board_entries bb
                LEFT JOIN albums a ON a.id = bb.album_id AND a.is_removed = 0
                LEFT JOIN albums va ON va.id = bb.via_album_id AND va.is_removed = 0
+               LEFT JOIN (
+                   SELECT album_id, COUNT(*) AS play_count, MAX(selected_at) AS last_played
+                   FROM listens WHERE did_listen = 1 GROUP BY album_id
+               ) pl ON pl.album_id = COALESCE(a.id, va.id)
                ORDER BY bb.rank"""
         )
         rows = cursor.fetchall()
@@ -367,6 +373,8 @@ def bigboard():
             cover = row["cover_image_url"] if direct else (row["via_cover_image_url"] if via else None)
             raw_genres = row["genres"] if direct else (row["via_genres"] if via else None)
             genres = json.loads(raw_genres) if raw_genres else []
+            raw_styles = row["styles"] if direct else (row["via_styles"] if via else None)
+            styles = json.loads(raw_styles) if raw_styles else []
             entry = {
                 "rank": row["rank"],
                 "artist": row["artist"],
@@ -374,6 +382,9 @@ def bigboard():
                 "year": row["year"],
                 "cover_image_url": cover if owned else None,
                 "genres": genres if owned else [],
+                "styles": styles if owned else [],
+                "play_count": (row["play_count"] or 0) if owned else 0,
+                "last_played": row["last_played"] if owned else None,
                 "owned": owned,
                 "album_id": row["album_id"] if direct else None,
                 "via_album_id": row["via_album_id"] if via else None,
@@ -1048,6 +1059,177 @@ def set_bigboard_via(rank):
         conn.close()
 
 
+def _shift_ranks(cursor, first, last, delta):
+    """Shift ranks first..last (inclusive) by delta without tripping the
+    unique index on rank: park them at negative ranks first."""
+    cursor.execute(
+        "UPDATE big_board_entries SET rank = -(rank + ?) WHERE rank BETWEEN ? AND ?",
+        (delta, first, last),
+    )
+    cursor.execute("UPDATE big_board_entries SET rank = -rank WHERE rank < 0")
+
+
+@app.route("/api/bigboard/move", methods=["POST"])
+def move_bigboard_entry():
+    """Move the entry at `rank` to `to_rank`, shifting the entries between."""
+    body = request.get_json(silent=True) or {}
+    try:
+        rank = int(body.get("rank"))
+        to_rank = int(body.get("to_rank"))
+    except (TypeError, ValueError):
+        return api_response(False, message="rank and to_rank are required.", status_code=400)
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM big_board_entries")
+        total = cursor.fetchone()[0]
+        cursor.execute("SELECT id FROM big_board_entries WHERE rank = ?", (rank,))
+        row = cursor.fetchone()
+        if not row:
+            return api_response(False, message="Big Board entry not found.", status_code=404)
+        to_rank = max(1, min(to_rank, total))
+        if to_rank == rank:
+            return api_response(message="No change.")
+
+        cursor.execute("UPDATE big_board_entries SET rank = 0 WHERE id = ?", (row["id"],))
+        if to_rank < rank:
+            _shift_ranks(cursor, to_rank, rank - 1, +1)
+        else:
+            _shift_ranks(cursor, rank + 1, to_rank, -1)
+        cursor.execute("UPDATE big_board_entries SET rank = ? WHERE id = ?", (to_rank, row["id"]))
+        mark_app_order_edited(cursor)
+        conn.commit()
+        return api_response(message=f"Moved #{rank} to #{to_rank}.", data={"rank": to_rank})
+    finally:
+        conn.close()
+
+
+@app.route("/api/bigboard/entries", methods=["POST"])
+def add_bigboard_entry():
+    """Add a new entry to the Big Board at a given rank (default: the end)."""
+    body = request.get_json(silent=True) or {}
+    artist = (body.get("artist") or "").strip()
+    title = (body.get("title") or "").strip()
+    if not artist or not title:
+        return api_response(False, message="Artist and title are required.", status_code=400)
+    year = body.get("year")
+    album_id = body.get("album_id")
+    try:
+        year = int(year) if year not in (None, "") else None
+        album_id = int(album_id) if album_id not in (None, "") else None
+    except (TypeError, ValueError):
+        return api_response(False, message="Invalid year or album.", status_code=400)
+    if year is not None and not 1900 <= year <= 2099:
+        return api_response(False, message="Year must be between 1900 and 2099.", status_code=400)
+
+    from bigboard_sync import entry_key
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT rank, {_ENTRY_KEY_COLS}, artist, title FROM big_board_entries")
+        rows = cursor.fetchall()
+        key = entry_key(artist, title)
+        for r in rows:
+            if key in (entry_key(r["key_artist"], r["key_title"]), entry_key(r["artist"], r["title"])):
+                return api_response(
+                    False, message=f"Already on the Big Board at #{r['rank']}.", status_code=409
+                )
+        if album_id is not None:
+            cursor.execute("SELECT id FROM albums WHERE id = ?", (album_id,))
+            if not cursor.fetchone():
+                return api_response(False, message="Album not found.", status_code=404)
+            # One rank per album
+            cursor.execute("UPDATE big_board_entries SET album_id = NULL WHERE album_id = ?", (album_id,))
+        else:
+            # Link it to your copy automatically, the same way an import would.
+            from bigboard_sync import MATCH_THRESHOLD, find_best_match, load_rejected_matches
+
+            rejected = load_rejected_matches(cursor).get(key, set())
+            cursor.execute(
+                """SELECT id, artist, title FROM albums
+                   WHERE is_removed = 0
+                     AND id NOT IN (SELECT album_id FROM big_board_entries WHERE album_id IS NOT NULL)"""
+            )
+            candidates = [a for a in cursor.fetchall() if a["id"] not in rejected]
+            best, score = find_best_match({"artist": artist, "title": title}, candidates)
+            if best and score >= MATCH_THRESHOLD:
+                album_id = best["id"]
+
+        total = len(rows)
+        try:
+            rank = int(body.get("rank") or total + 1)
+        except (TypeError, ValueError):
+            rank = total + 1
+        rank = max(1, min(rank, total + 1))
+        if rank <= total:
+            _shift_ranks(cursor, rank, total, +1)
+        cursor.execute(
+            """INSERT INTO big_board_entries
+               (rank, artist, title, year, album_id, source_artist, source_title, added_in_app)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 1)""",
+            (rank, artist, title, year, album_id, artist, title),
+        )
+        mark_app_order_edited(cursor)
+        conn.commit()
+        return api_response(
+            message=f"Added to the Big Board at #{rank}.",
+            data={"rank": rank, "album_id": album_id},
+        )
+    finally:
+        conn.close()
+
+
+def _bigboard_export_rows():
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT bb.artist, bb.title, bb.year,
+                      (a.id IS NOT NULL OR va.id IS NOT NULL) AS owned
+               FROM big_board_entries bb
+               LEFT JOIN albums a ON a.id = bb.album_id AND a.is_removed = 0
+               LEFT JOIN albums va ON va.id = bb.via_album_id AND va.is_removed = 0
+               LEFT JOIN (
+                   SELECT album_id, COUNT(*) AS play_count, MAX(selected_at) AS last_played
+                   FROM listens WHERE did_listen = 1 GROUP BY album_id
+               ) pl ON pl.album_id = COALESCE(a.id, va.id)
+               ORDER BY bb.rank"""
+        )
+        return [
+            [r["artist"], r["title"], str(r["year"] or ""), "x" if r["owned"] else ""]
+            for r in cursor.fetchall()
+        ]
+    finally:
+        conn.close()
+
+
+@app.route("/api/bigboard/export")
+def export_bigboard():
+    """The Big Board in its current order, as Artist, Title, Year, Owned.
+
+    ?format=tsv (default) is for pasting into Google Sheets at cell A1;
+    ?format=csv downloads a file in the same format the importer reads.
+    """
+    import csv
+    import io
+
+    rows = _bigboard_export_rows()
+    if request.args.get("format") == "csv":
+        buf = io.StringIO()
+        csv.writer(buf, lineterminator="\n").writerows(rows)
+        return Response(
+            buf.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment; filename=big_board.csv"},
+        )
+    # Tabs/newlines inside a cell would split it when pasted, so flatten them.
+    clean = lambda v: v.replace("\t", " ").replace("\n", " ")
+    tsv = "\n".join("\t".join(clean(v) for v in row) for row in rows)
+    return Response(tsv, mimetype="text/plain; charset=utf-8")
+
+
 def _fetch_master_data(master_id):
     """Fetch year and cover image from Discogs master release."""
     import requests
@@ -1160,7 +1342,7 @@ def run_sync(sync_type):
             )
             sync_status["message"] = (
                 f"Done! Matched {results['matched']}/{results['total_entries']} entries. "
-                f"{results['unmatched_count']} unmatched.{dupe_note}"
+                f"{results['unmatched_count']} unmatched.{dupe_note} {results['order_note']}"
             )
         elif sync_type == "master_years":
             from master_year_sync import sync_master_years
