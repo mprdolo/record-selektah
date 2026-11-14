@@ -4,17 +4,20 @@ A personal vinyl listening companion that connects to your [Discogs](https://www
 
 Built alongside [Public Diplomacy Records](https://palmaradio.substack.com), a newsletter about building a dream record collection: 30 albums for each year between 1960 and 2020. (The app was originally called Record Selektah, which is why the repository keeps that name.)
 
-![Public Diplomacy Records screenshot](static/screenshot.png)
+![The home screen: a random pick from the collection](docs/screenshots/home.png)
 
 ## Features
 
 - **Random Selection** -- Pick a record at random from your collection and mark it as Played, Skipped, or Excluded
 - **The Library** -- Browse your full Discogs collection sorted by artist, title, or year
 - **Listening Stats** -- See your most-played albums ranked by play count
-- **Big Board Explorer** -- View your personal album ranking by rank, decade, genre, or track your year-by-year Collecting Progress (defaults to a 1960-2020 / 30-albums-per-year target; adjust `PROGRESS_START_YEAR`, `PROGRESS_END_YEAR`, and `PROGRESS_TARGET_PER_YEAR` near the top of `static/js/app.js` if your Big Board uses a different structure)
+- **Big Board Explorer** -- View your personal album ranking by rank, decade, or genre, with cover art, genre and style tags, and play counts on every row
+- **Reorder the Big Board** -- Drag records up or down (or type a new rank), add records in the app, and copy the new order back to your Google Sheet
+- **Taste Test** -- Choose between random pairs of Big Board albums; the ones you keep picking slowly climb the ranking
+- **Collecting Progress** -- Track how close you are to a full collection, year by year
+- **Corrections that stick** -- Fix a wrong match between the Big Board and your collection once, and re-imports and re-syncs keep your fix
 - **Excluded Albums** -- Manage albums removed from the random selection pool
-- **Album Detail Cards** -- View metadata, genres, styles, play counts, and Discogs links for any album
-- **Master Release Overrides** -- Manually set or correct master release links for accurate year data
+- **Album Detail Cards** -- View metadata, genres, styles, play counts, and Discogs links for any album, log a play, and correct the release year or Discogs release/master links
 
 ## Setup
 
@@ -71,9 +74,15 @@ Built alongside [Public Diplomacy Records](https://palmaradio.substack.com), a n
 
    Then open `http://localhost:3345` in your browser.
 
+### Updating
+
+To get the latest version, run `git pull` in the app folder, then restart the app. On Windows the app runs silently in the background, so first end any **pythonw** processes in Task Manager (Details tab), then launch it again from the desktop shortcut. If you skip the restart, the old version keeps running and new features may show errors.
+
 ## Syncing Your Collection
 
-Click **Sync Data** in the header, then choose **"Sync Discogs Collection"**. This imports every release from your Discogs collection. Re-sync any time to pick up additions or removals.
+Click **Sync Data** in the header, then choose **"Sync Discogs Collection"**. This imports every release from your Discogs collection. Re-sync any time to pick up additions or removals. Your play history, exclusions, and any corrections you've made are kept, even if you swap a record for a different pressing on Discogs.
+
+The **Sync Data** window also has a **Settings** area where you can change your Discogs username and the location of your Big Board CSV.
 
 ## Big Board (Optional)
 
@@ -96,16 +105,24 @@ Talking Heads,Remain in Light,1980,x
 
 - Rows are ordered by rank (row 1 = #1, row 2 = #2, etc.)
 - Mark `x` in the **Owned** column for albums you own; leave blank otherwise
+- The header row is optional; a file that starts straight in with the first album works too
+- To use a CSV stored somewhere else, set its path under **Sync Data** > **Settings**
 
 ### Importing
 
-Click **Sync Data** > **"Import Big Board CSV"**. Unmatched entries can be manually linked to your collection in the Big Board Explorer.
+Click **Sync Data** > **"Import Big Board CSV"**. Each entry is matched to the album in your collection, if you own it. Unmatched entries can be linked by hand in the Big Board Explorer.
 
-Corrections are remembered: if you unlink a wrong match ("I don't own this album") or relink an entry to a different album, re-importing the CSV won't put the wrong match back. Links you make by hand are also kept when an entry moves to a different rank.
+### Fixing Wrong Matches
+
+If an entry is linked to the wrong album, open it and click **Incorrect album association**. From there you can search for the right album in your collection or choose **I don't own this album**.
+
+Corrections are remembered: re-importing the CSV or re-syncing Discogs won't put a wrong match back. Links you make by hand are also kept when an entry moves to a different rank.
 
 ### Reordering in the App
 
-On the Big Board's **Rank** tab, drag a record up or down to rerank it, or click its number and type a new rank. **+ Add record** adds a new entry (it's linked to your copy automatically if you own it).
+![The Big Board's Rank view](docs/screenshots/big-board.png)
+
+Each row shows the album cover, genre and style tags, the year, and how many times you've played it. On the Big Board's **Rank** tab, drag a record up or down to rerank it, or click its number and type a new rank. **+ Add record** adds a new entry (it's linked to your copy automatically if you own it).
 
 To bring your spreadsheet up to date, click **Copy for Google Sheets**, then click cell **A1** in the sheet and paste. Only columns A–D (Artist, Title, Year, Owned) are replaced, so any formulas to the right are untouched. **Download CSV** saves the same thing as a file.
 
@@ -113,12 +130,33 @@ When you re-import, the app's order wins: entries already on the board stay wher
 
 ### Taste Test
 
+![A Taste Test pair after picking the lower-ranked album](docs/screenshots/taste-test.png)
+
 Click **Taste Test** in the header for a round of ten random pairs of Big Board albums. Pick the one you prefer (click it, or use the ← / → keys); ranks stay hidden until you choose.
 
 - If you pick the album that's already ranked higher, nothing changes.
 - If you pick the lower-ranked one, it climbs part of the way toward the other, never past it. The climb grows with the gap, but slowly (about 1.5 × the square root of the gap): a gap of 10 moves it 5 places, 50 moves it 11, 200 moves it 22, 600 moves it 37. Albums you keep picking keep climbing; a one-off whim barely registers.
 
 Tune `BOOST_FACTOR` in `taste_test.py` to make each answer count for more or less. Every answer is saved in the `taste_test_votes` table. Like dragging, taste-test moves count as reordering in the app, so remember to **Copy for Google Sheets** afterwards.
+
+### Collecting Progress
+
+![Collecting Progress, year by year](docs/screenshots/collecting-progress.png)
+
+The **Collecting Progress** tab shows how much of your target collection you own, overall and for each year. Click a year to see which albums from it you have and which you still need.
+
+It defaults to a 1960-2020, 30-albums-per-year target. If your Big Board uses a different structure, adjust `PROGRESS_START_YEAR`, `PROGRESS_END_YEAR`, and `PROGRESS_TARGET_PER_YEAR` near the top of `static/js/app.js`.
+
+## Album Details
+
+![An album's detail card](docs/screenshots/album-detail.png)
+
+Click any album to open its detail card. From there you can:
+
+- Click **Just Played** to log a play.
+- Set or correct the original release year with the pencil icon.
+- Correct the **Discogs Release** or **Master Release** link if Discogs has the wrong one.
+- Fix the album's Big Board match with **Incorrect album association**.
 
 ## Fetching Master Years (Optional)
 
@@ -129,7 +167,8 @@ Click **Sync Data** > **"Fetch Master Release Years"** to backfill original rele
 | Section | What it does |
 |---------|-------------|
 | **Home** | Click "Select Next Record" for a random pick. Mark as Played, Skip, or Exclude. |
-| **Big Board** | Browse your ranked list by rank tiers, decades, genres, or your year-by-year Collecting Progress. |
+| **Big Board** | Browse and reorder your ranked list by rank tiers, decades, genres, or your year-by-year Collecting Progress. |
+| **Taste Test** | Pick between ten random pairs of Big Board albums to fine-tune the ranking. |
 | **Library** | Browse your full collection with sort and search. |
 | **Stats** | View most-played albums by play count. |
 | **Excluded** | Manage albums excluded from random selection. |
@@ -146,7 +185,7 @@ The tests use a throwaway database, so they never touch your real data in `data/
 ## Tech Stack
 
 - **Backend:** Flask, SQLite
-- **Frontend:** Vanilla JavaScript, HTML, CSS
+- **Frontend:** Vanilla JavaScript, HTML, CSS ([SortableJS](https://github.com/SortableJS/Sortable) for drag-and-drop)
 - **Data Source:** Discogs API
 
 ## Credits
