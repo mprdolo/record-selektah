@@ -1,5 +1,5 @@
 /* ===========================
-   Record Selektah — Frontend
+   Public Diplomacy Records — Frontend
    =========================== */
 
 (function () {

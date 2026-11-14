@@ -1,19 +1,24 @@
 /* ===========================
-   Record Selektah — Styles
+   Public Diplomacy Records — Styles
    =========================== */
 
 :root {
-    --gold: #D4A843;
-    --gold-light: #e4c373;
-    --green: #2D5A3D;
-    --green-dark: #1e3d29;
-    --brown: #3E2723;
-    --cream: #FAF3E3;
-    --cream-dark: #f0e6cc;
-    --charcoal: #2C2C2C;
+    /* Public Diplomacy Records palette, matching the Substack: its green
+       accent, black ink, and light grey page.
+       (Token names are historical; --gold is the accent, --green the ink.) */
+    --gold: #78A947;            /* Substack accent: fills, badges, rules */
+    --gold-light: #A3C97C;
+    --gold-text: #4A7323;       /* accent dark enough for text on light grey */
+    --green: #1A1A1A;           /* primary buttons */
+    --green-dark: #000000;
+    --brown: #111111;           /* header, headings */
+    --cream: #F3F4F7;           /* page background (matches the Substack) */
+    --cream-dark: #E4E6EC;
+    --charcoal: #1F1F1F;
     --charcoal-light: #4a4a4a;
 
     --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-brand: 'League Spartan', 'Futura', 'Century Gothic', sans-serif;
     --radius: 8px;
     --radius-lg: 12px;
     --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -71,10 +76,20 @@ body {
 }
 
 .logo-text {
-    font-size: 1.2rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    color: var(--cream);
+    font-family: var(--font-brand);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    line-height: 1.05;
+    color: #fff;
+}
+
+.logo-text span {
+    display: block;
+}
+
+.logo-text .logo-text-sub {
+    color: var(--gold);
 }
 
 /* ---- Buttons ---- */
@@ -116,18 +131,18 @@ body {
     font-weight: 700;
     letter-spacing: 0.04em;
     border-radius: var(--radius-lg);
-    box-shadow: 0 4px 16px rgba(45, 90, 61, 0.3);
+    box-shadow: 0 4px 16px rgba(26, 26, 26, 0.3);
 }
 
 .btn-primary:hover:not(:disabled) {
     background-color: var(--green-dark);
-    box-shadow: 0 6px 20px rgba(45, 90, 61, 0.4);
+    box-shadow: 0 6px 20px rgba(26, 26, 26, 0.4);
     transform: translateY(-1px);
 }
 
 .btn-primary:active:not(:disabled) {
     transform: translateY(0);
-    box-shadow: 0 2px 8px rgba(45, 90, 61, 0.3);
+    box-shadow: 0 2px 8px rgba(26, 26, 26, 0.3);
 }
 
 .select-row {
@@ -150,7 +165,7 @@ body {
 }
 
 .btn-secondary:hover:not(:disabled) {
-    background-color: #e6d9b8;
+    background-color: #D9DCE3;
 }
 
 .btn-danger {
@@ -323,7 +338,7 @@ body {
 
 .album-meta {
     font-size: 0.9rem;
-    color: var(--gold);
+    color: var(--gold-text);
     font-weight: 600;
 }
 
@@ -331,12 +346,12 @@ body {
     position: absolute;
     top: -8px;
     right: -8px;
-    background: linear-gradient(135deg, var(--gold), #e8b828);
+    background: linear-gradient(135deg, var(--gold), #8DBB5E);
     color: var(--brown);
     border-radius: 10px;
     padding: 6px 12px;
     text-align: center;
-    box-shadow: 0 4px 16px rgba(212, 168, 67, 0.5);
+    box-shadow: 0 4px 16px rgba(120, 169, 71, 0.5);
     z-index: 2;
     line-height: 1.1;
     display: flex;
@@ -494,7 +509,7 @@ body {
 }
 
 .history-status.listened {
-    background-color: rgba(45, 90, 61, 0.1);
+    background-color: rgba(26, 26, 26, 0.1);
     color: var(--green);
 }
 
@@ -504,8 +519,8 @@ body {
 }
 
 .history-status.pending {
-    background-color: rgba(212, 168, 67, 0.15);
-    color: var(--gold);
+    background-color: rgba(120, 169, 71, 0.15);
+    color: var(--gold-text);
 }
 
 #btn-load-more {
@@ -950,7 +965,7 @@ body {
 .bigboard-tab.active {
     background: var(--green);
     color: #fff;
-    box-shadow: 0 2px 6px rgba(45, 90, 61, 0.25);
+    box-shadow: 0 2px 6px rgba(26, 26, 26, 0.25);
 }
 
 .bigboard-filter {
@@ -1041,13 +1056,13 @@ body {
     height: 36px;
     border-radius: 50%;
     background: var(--gold);
-    color: #fff;
+    color: var(--brown);
     font-size: 0.75rem;
     font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 6px rgba(212, 168, 67, 0.3);
+    box-shadow: 0 2px 6px rgba(120, 169, 71, 0.3);
 }
 
 .bb-card.unowned .bb-rank {
@@ -1101,7 +1116,7 @@ body {
 
 .bb-year {
     font-size: 0.7rem;
-    color: var(--gold);
+    color: var(--gold-text);
     font-weight: 600;
 }
 
@@ -1111,7 +1126,7 @@ body {
     font-weight: 600;
     padding: 2px 6px;
     border-radius: 100px;
-    background: rgba(45, 90, 61, 0.1);
+    background: rgba(26, 26, 26, 0.1);
     color: var(--green);
 }
 
@@ -1314,7 +1329,7 @@ body {
 
 .detail-year {
     font-size: 0.85rem;
-    color: var(--gold);
+    color: var(--gold-text);
     font-weight: 600;
     margin-bottom: 4px;
 }
@@ -1341,19 +1356,19 @@ body {
     font-weight: 600;
     padding: 2px 8px;
     border-radius: 100px;
-    background: rgba(45, 90, 61, 0.1);
+    background: rgba(26, 26, 26, 0.1);
     color: var(--green);
 }
 
 .detail-pill.style-pill {
-    background: rgba(212, 168, 67, 0.15);
+    background: rgba(120, 169, 71, 0.15);
     color: var(--brown);
 }
 
 .detail-rank {
     font-size: 0.85rem;
     font-weight: 700;
-    color: #fff;
+    color: var(--brown);
     background: var(--gold);
     display: inline-block;
     padding: 3px 10px;
@@ -1726,7 +1741,7 @@ body {
 .bb-jump-btn:hover {
     border-color: var(--gold);
     color: var(--brown);
-    background: rgba(212, 168, 67, 0.08);
+    background: rgba(120, 169, 71, 0.08);
 }
 
 /* ---- History Clickable ---- */
@@ -1747,7 +1762,7 @@ body {
 
 .match-entry-info .match-rank {
     font-weight: 700;
-    color: var(--gold);
+    color: var(--gold-text);
 }
 
 .match-entry-info .match-artist-title {
@@ -1844,7 +1859,7 @@ body {
 
 .match-result-rank {
     font-size: 0.75rem;
-    color: var(--gold);
+    color: var(--gold-text);
     font-weight: 600;
 }
 
@@ -1880,8 +1895,8 @@ body {
     font-weight: 600;
     padding: 2px 6px;
     border-radius: 100px;
-    background: rgba(212, 168, 67, 0.15);
-    color: var(--gold);
+    background: rgba(120, 169, 71, 0.15);
+    color: var(--gold-text);
     max-width: 100px;
     white-space: nowrap;
     overflow: hidden;
@@ -1890,7 +1905,7 @@ body {
 
 .bb-via-subtitle {
     font-size: 0.65rem;
-    color: var(--gold);
+    color: var(--gold-text);
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
@@ -1904,7 +1919,7 @@ body {
     align-items: center;
     gap: 8px;
     padding: 8px 12px;
-    background: rgba(212, 168, 67, 0.1);
+    background: rgba(120, 169, 71, 0.1);
     border-radius: var(--radius);
     margin-top: 12px;
     margin-bottom: 4px;
@@ -1913,7 +1928,7 @@ body {
 .match-via-label {
     font-size: 0.8rem;
     font-weight: 600;
-    color: var(--gold);
+    color: var(--gold-text);
     flex-shrink: 0;
 }
 
@@ -2140,7 +2155,7 @@ body {
 .lib-jump-btn:hover {
     border-color: var(--gold);
     color: var(--brown);
-    background: rgba(212, 168, 67, 0.08);
+    background: rgba(120, 169, 71, 0.08);
 }
 
 .lib-year-sub {
@@ -2160,7 +2175,7 @@ body {
     padding: 4px 10px;
     border: 1.5px solid var(--green);
     border-radius: 100px;
-    background: rgba(45, 90, 61, 0.06);
+    background: rgba(26, 26, 26, 0.06);
     color: var(--green);
     cursor: pointer;
     transition: all var(--transition);
@@ -2277,7 +2292,7 @@ body {
 
 .lib-year {
     font-size: 0.7rem;
-    color: var(--gold);
+    color: var(--gold-text);
     font-weight: 600;
 }
 
@@ -2287,8 +2302,8 @@ body {
     font-weight: 600;
     padding: 2px 6px;
     border-radius: 100px;
-    background: rgba(212, 168, 67, 0.15);
-    color: var(--gold);
+    background: rgba(120, 169, 71, 0.15);
+    color: var(--gold-text);
 }
 
 /* ---- Listening Stats ---- */
@@ -2358,7 +2373,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 6px rgba(45, 90, 61, 0.3);
+    box-shadow: 0 2px 6px rgba(26, 26, 26, 0.3);
 }
 
 .lstats-cover {
@@ -2422,8 +2437,8 @@ body {
     font-weight: 600;
     padding: 1px 6px;
     border-radius: 100px;
-    background: rgba(212, 168, 67, 0.15);
-    color: var(--gold);
+    background: rgba(120, 169, 71, 0.15);
+    color: var(--gold-text);
     white-space: nowrap;
 }
 

@@ -6,7 +6,7 @@ load_dotenv()
 # Discogs API
 DISCOGS_TOKEN = os.getenv("DISCOGS_TOKEN")
 DISCOGS_USERNAME = os.getenv("DISCOGS_USERNAME", "mprdolo")
-DISCOGS_USER_AGENT = "RecordSelektah/1.0 +https://github.com/mprdolo/record-selektah"
+DISCOGS_USER_AGENT = "PublicDiplomacyRecords/1.0 +https://github.com/mprdolo/record-selektah"
 DISCOGS_RATE_LIMIT_DELAY = 1.0  # seconds between API calls
 
 # Flask

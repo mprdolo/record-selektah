@@ -1,10 +1,10 @@
-# Record Selektah
+# Public Diplomacy Records
 
 A personal vinyl listening companion that connects to your [Discogs](https://www.discogs.com) collection, randomly selects records for you to listen to, tracks your play history, and optionally integrates with a personal album ranking list (the "Big Board").
 
-Inspired by reggae sound system DJs ("selektahs") of the 1960s-70s.
+Built alongside [Public Diplomacy Records](https://palmaradio.substack.com), a newsletter about building a dream record collection: 30 albums for each year between 1960 and 2020. (The app was originally called Record Selektah, which is why the repository keeps that name.)
 
-![Record Selektah screenshot](static/screenshot.png)
+![Public Diplomacy Records screenshot](static/screenshot.png)
 
 ## Features
 
@@ -61,7 +61,7 @@ Inspired by reggae sound system DJs ("selektahs") of the 1960s-70s.
    python install.py
    ```
 
-   This creates a "Record Selektah" shortcut on your desktop that launches the app without a console window and opens your browser automatically.
+   This creates a "Public Diplomacy Records" shortcut on your desktop that launches the app without a console window and opens your browser automatically.
 
    Alternatively, run the app directly:
 

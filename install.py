@@ -1,13 +1,14 @@
-"""Create a desktop shortcut for Record Selektah (Windows)."""
+"""Create a desktop shortcut for Public Diplomacy Records (Windows)."""
 import os
 import sys
 import subprocess
 import tempfile
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
-SHORTCUT_NAME = "Record Selektah.lnk"
+SHORTCUT_NAME = "Public Diplomacy Records.lnk"
+OLD_SHORTCUT_NAME = "Record Selektah.lnk"  # pre-rebrand name
 TARGET = os.path.join(APP_DIR, "start.pyw")
-ICON = os.path.join(APP_DIR, "record_selektah.ico")
+ICON = os.path.join(APP_DIR, "public_diplomacy_records.ico")
 
 
 def get_desktop():
@@ -58,7 +59,7 @@ def create_shortcut():
             f'sc.Arguments = """{TARGET}"""\n'
             f'sc.WorkingDirectory = "{APP_DIR}"\n'
             f'sc.IconLocation = "{ICON},0"\n'
-            f'sc.Description = "Launch Record Selektah"\n'
+            f'sc.Description = "Launch Public Diplomacy Records"\n'
             "sc.Save\n"
         )
         vbs.close()
@@ -67,6 +68,15 @@ def create_shortcut():
         os.unlink(vbs.name)
 
     print(f"Desktop shortcut created: {shortcut_path}")
+
+    # Remove the old "Record Selektah" shortcut so there aren't two.
+    old_path = os.path.join(desktop, OLD_SHORTCUT_NAME)
+    if os.path.exists(old_path):
+        try:
+            os.remove(old_path)
+            print(f"Removed old shortcut: {old_path}")
+        except OSError:
+            print(f"Couldn't remove old shortcut, delete it by hand: {old_path}")
 
 
 if __name__ == "__main__":
@@ -80,7 +90,7 @@ if __name__ == "__main__":
 
     try:
         create_shortcut()
-        print("Done! Double-click 'Record Selektah' on your desktop to launch.")
+        print("Done! Double-click 'Public Diplomacy Records' on your desktop to launch.")
     except Exception as e:
         print(f"Error creating shortcut: {e}")
         sys.exit(1)
