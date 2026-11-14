@@ -1,6 +1,6 @@
 import csv
-import json
 import re
+import unicodedata
 from thefuzz import fuzz
 from db import get_db_connection
 from config import BIG_BOARD_CSV_PATH
@@ -13,6 +13,9 @@ def normalize_for_matching(text):
     """Normalize text for fuzzy matching: lowercase, strip 'the', remove punctuation."""
     if not text:
         return ""
+    # Fold accents so "João" matches "Joao"
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
     text = text.lower().strip()
     # Remove leading "the "
     text = re.sub(r"^the\s+", "", text)
@@ -20,10 +23,17 @@ def normalize_for_matching(text):
     text = re.sub(r",\s*the$", "", text)
     # Strip parenthetical disambiguation like " (2)"
     text = re.sub(r"\s*\(\d+\)\s*$", "", text)
-    # Remove punctuation
+    # Treat "&" and "and" the same
+    text = text.replace("&", " and ")
+    # Separators become spaces ("Getz/Gilberto", "12-String"); other
+    # punctuation is dropped ("Don't" -> "dont")
+    text = re.sub(r"[-/_]", " ", text)
     text = re.sub(r"[^\w\s]", "", text)
     # Collapse whitespace
     text = re.sub(r"\s+", " ", text).strip()
+    # Discogs credits compilations to "Various"; lists often say "Various Artists"
+    if text == "various artists":
+        text = "various"
     return text
 
 
@@ -34,7 +44,7 @@ def read_big_board_csv(csv_path=None):
 
     with open(path, "r", encoding="utf-8-sig") as f:
         reader = csv.reader(f)
-        for row_num, row in enumerate(reader, start=1):
+        for row in reader:
             # Skip empty rows
             if not row or not any(cell.strip() for cell in row[:3]):
                 continue
@@ -46,6 +56,10 @@ def read_big_board_csv(csv_path=None):
 
             if not artist or not title:
                 continue
+            # The README and sample file start with an "Artist,Title,..."
+            # header; don't import it as the #1 album.
+            if not entries and artist.lower() == "artist" and title.lower() == "title":
+                continue
 
             year = None
             if year_str:
@@ -55,7 +69,7 @@ def read_big_board_csv(csv_path=None):
                     pass
 
             entries.append({
-                "rank": row_num,
+                "rank": len(entries) + 1,
                 "artist": artist,
                 "title": title,
                 "year": year,
@@ -63,6 +77,109 @@ def read_big_board_csv(csv_path=None):
             })
 
     return entries
+
+
+# Minimum score each of artist and title must reach on its own. Without this,
+# a perfect title could carry a completely different artist (or vice versa)
+# over the threshold -- e.g. "Television Personalities / ...Love It" matching
+# "Love / Love".
+MIN_ARTIST_SCORE = 75
+MIN_TITLE_SCORE = 85
+
+# Score given when one name is contained in the other (see _field_score).
+SUBSET_SCORE = 90
+
+# Tokens that identify one volume/part of a series ("Led Zeppelin II" vs
+# "III", "Pretenders" vs "Pretenders II", "Neu!" vs "Neu! '75").
+_ROMAN_NUMERALS = {"ii", "iii", "iv", "vi", "vii", "viii", "ix", "xi", "xii"}
+
+
+def _series_markers(text):
+    return {t for t in text.split() if t.isdigit() or t in _ROMAN_NUMERALS}
+
+
+def _different_volumes(a, b):
+    """True if two titles look like different entries in the same series."""
+    ma, mb = _series_markers(a), _series_markers(b)
+    if ma == mb:
+        return False
+    if ma and mb:
+        return True
+    # Only one side has a number: different records if that's the only
+    # difference ("Pretenders" vs "Pretenders II"), but not when the number is
+    # just extra detail ("Untitled" vs "Untitled (Led Zeppelin IV)").
+    strip = lambda t: [w for w in t.split() if w not in ma | mb]
+    return strip(a) == strip(b)
+
+
+def _is_leading_subset(short, long):
+    """True if the shorter string's words are the first words of the longer."""
+    short_t, long_t = short.split(), long.split()
+    if len(short_t) > len(long_t):
+        short_t, long_t = long_t, short_t
+    return bool(short_t) and long_t[: len(short_t)] == short_t
+
+
+def _is_word_subset(a, b):
+    """True if every word of the shorter string appears as a word in the longer."""
+    ta, tb = a.split(), b.split()
+    short_t, long_t = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
+    return bool(short_t) and set(short_t) <= set(long_t)
+
+
+def _is_phrase_subset(a, b):
+    """True if the shorter string appears, word for word and in order, in the longer."""
+    short, long = (a, b) if len(a) <= len(b) else (b, a)
+    return bool(short) and f" {short} " in f" {long} "
+
+
+def _field_score(a, b, contained):
+    """Similarity of two normalized strings, 0-100.
+
+    Containment counts as a strong match ("Eno" vs "Brian Eno", "At Fillmore
+    East" vs "The Allman Brothers Band At Fillmore East"), but only on whole
+    words, so a short word that merely appears inside a longer name ("Love"
+    inside "...Just Love It") or a prefix of another word ("Gil" inside
+    "Gilberto") doesn't count.
+    """
+    if not a or not b:
+        return 0
+    score = max(fuzz.ratio(a, b), fuzz.token_sort_ratio(a, b))
+    if contained(a, b):
+        score = max(score, SUBSET_SCORE)
+    return score
+
+
+def _title_contained(a, b):
+    words = len((a if len(a) <= len(b) else b).split())
+    return (
+        _is_leading_subset(a, b)
+        or (words >= 2 and _is_phrase_subset(a, b))
+        or (words >= 3 and _is_word_subset(a, b))
+    )
+
+
+def score_match(entry_artist, entry_title, album_artist, album_title):
+    """Score how well a normalized Big Board entry matches a normalized album."""
+    # Artist credits get listed in any order ("Yano Akiko" vs "Akiko Yano",
+    # "John Mayall & the Bluesbreakers with Eric Clapton" vs "John Mayall, Eric
+    # Clapton"), so any word-for-word containment counts.
+    artist_score = _field_score(entry_artist, album_artist, _is_word_subset)
+    # Title containment is stricter: leading words ("Mercy Mercy Mercy" vs
+    # "Mercy Mercy Mercy Live At The Club"), a 2+ word phrase ("At Fillmore
+    # East"), or 3+ words in any order ("Modern Sounds in Country Music" vs
+    # "...Country and Western Music"). A lone word or a pair of common words
+    # inside a longer title is usually a coincidence ("War" vs "War Ina
+    # Babylon", "Black Sabbath" vs "Blue Sabbath, Black Fiji").
+    title_score = _field_score(entry_title, album_title, _title_contained)
+
+    if _different_volumes(entry_title, album_title):
+        return 0
+    if artist_score < MIN_ARTIST_SCORE or title_score < MIN_TITLE_SCORE:
+        return 0
+
+    # Weighted average (title matters more for disambiguation)
+    return (artist_score * 0.4) + (title_score * 0.6)
 
 
 def find_best_match(entry, albums):
@@ -77,36 +194,71 @@ def find_best_match(entry, albums):
     best_score = 0
 
     for album in albums:
-        album_artist = normalize_for_matching(album["artist"])
-        album_title = normalize_for_matching(album["title"])
-
-        # Score artist and title separately, then combine
-        artist_score = fuzz.ratio(entry_artist, album_artist)
-        title_score = fuzz.ratio(entry_title, album_title)
-
-        # Also try token_sort_ratio for reordered words
-        artist_sort_score = fuzz.token_sort_ratio(entry_artist, album_artist)
-        title_sort_score = fuzz.token_sort_ratio(entry_title, album_title)
-
-        # partial_ratio helps when one artist string contains the other
-        # (e.g. "Alice Coltrane" vs "Alice Coltrane, Pharoah Sanders, Joe Henderson")
-        artist_partial = fuzz.partial_ratio(entry_artist, album_artist)
-
-        # token_set_ratio handles subset matches well
-        # (e.g. "Mercy, Mercy, Mercy" vs "Mercy, Mercy, Mercy! - Live At The Club")
-        title_set_score = fuzz.token_set_ratio(entry_title, album_title)
-
-        artist_best = max(artist_score, artist_sort_score, artist_partial)
-        title_best = max(title_score, title_sort_score, title_set_score)
-
-        # Combined score: weighted average (title matters more for disambiguation)
-        combined = (artist_best * 0.4) + (title_best * 0.6)
-
+        combined = score_match(
+            entry_artist,
+            entry_title,
+            normalize_for_matching(album["artist"]),
+            normalize_for_matching(album["title"]),
+        )
         if combined > best_score:
             best_score = combined
             best_match = album
 
     return best_match, best_score
+
+
+def _key_text(text):
+    """Normalization used for entry identity keys.
+
+    Deliberately frozen: remembered rejections are stored under these keys,
+    so changing this would silently forget them. Improve
+    normalize_for_matching instead.
+    """
+    if not text:
+        return ""
+    text = text.lower().strip()
+    text = re.sub(r"^the\s+", "", text)
+    text = re.sub(r",\s*the$", "", text)
+    text = re.sub(r"\s*\(\d+\)\s*$", "", text)
+    text = re.sub(r"[^\w\s]", "", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def entry_key(artist, title):
+    """Stable identity for a Big Board entry across re-syncs."""
+    return (_key_text(artist), _key_text(title))
+
+
+def load_rejected_matches(cursor):
+    """Return {entry_key: {album_id, ...}} of links the user has rejected."""
+    cursor.execute(
+        "SELECT entry_artist_key, entry_title_key, album_id FROM big_board_rejected_matches"
+    )
+    rejected = {}
+    for row in cursor.fetchall():
+        key = (row["entry_artist_key"], row["entry_title_key"])
+        rejected.setdefault(key, set()).add(row["album_id"])
+    return rejected
+
+
+def reject_match(cursor, artist, title, album_id):
+    """Remember that this entry must never be auto-linked to this album again."""
+    artist_key, title_key = entry_key(artist, title)
+    cursor.execute(
+        """INSERT OR IGNORE INTO big_board_rejected_matches
+           (entry_artist_key, entry_title_key, album_id) VALUES (?, ?, ?)""",
+        (artist_key, title_key, album_id),
+    )
+
+
+def unreject_match(cursor, artist, title, album_id):
+    """Forget a past rejection (the user has now linked this pair by hand)."""
+    artist_key, title_key = entry_key(artist, title)
+    cursor.execute(
+        """DELETE FROM big_board_rejected_matches
+           WHERE entry_artist_key = ? AND entry_title_key = ? AND album_id = ?""",
+        (artist_key, title_key, album_id),
+    )
 
 
 def _get_active_csv_path():
@@ -139,7 +291,7 @@ def sync_big_board(csv_path=None, progress_callback=None):
     deduped_entries = []
     duplicates_skipped = 0
     for entry in entries:
-        key = (normalize_for_matching(entry["artist"]), normalize_for_matching(entry["title"]))
+        key = entry_key(entry["artist"], entry["title"])
         if key in seen:
             duplicates_skipped += 1
             continue
@@ -157,77 +309,67 @@ def sync_big_board(csv_path=None, progress_callback=None):
         "SELECT id, artist, title, release_year, master_year FROM albums WHERE is_removed = 0"
     )
     albums = cursor.fetchall()
+    live_album_ids = {album["id"] for album in albums}
 
     # Snapshot existing entries so we can preserve manual matches and via links.
-    # Key by normalized artist+title so we can find the old entry even if the
-    # rank shifted after deduplication.
-    cursor.execute("SELECT rank, artist, title, year, album_id, via_album_id FROM big_board_entries")
+    # Key by the entry's CSV text (source_*), not its displayed text, so an
+    # entry edited in the app still finds its old match. Fall back to the
+    # displayed text for rows imported before source_* existed.
+    cursor.execute(
+        """SELECT rank, COALESCE(source_artist, artist) AS key_artist,
+                  COALESCE(source_title, title) AS key_title,
+                  album_id, via_album_id
+           FROM big_board_entries ORDER BY rank"""
+    )
     old_by_key = {}
     for row in cursor.fetchall():
-        key = (normalize_for_matching(row["artist"]), normalize_for_matching(row["title"]))
+        key = entry_key(row["key_artist"], row["key_title"])
         # Keep the first (best-ranked) entry per key
         if key not in old_by_key:
             old_by_key[key] = dict(row)
 
-    # Load matches the user explicitly rejected ("I don't own this album")
-    # so fuzzy matching doesn't reapply the same wrong association on re-sync.
-    cursor.execute("SELECT entry_artist_key, entry_title_key, album_id FROM big_board_rejected_matches")
-    rejected_by_key = {}
-    for row in cursor.fetchall():
-        key = (row["entry_artist_key"], row["entry_title_key"])
-        rejected_by_key.setdefault(key, set()).add(row["album_id"])
+    # Load matches the user explicitly rejected (unlinked, or relinked to a
+    # different album) so re-syncs never reapply the same wrong association.
+    rejected_by_key = load_rejected_matches(cursor)
 
     # Clear existing Big Board entries so re-imports are clean
     cursor.execute("DELETE FROM big_board_entries")
 
-    matched = 0
-    unmatched = []
     total = len(entries)
-    # Track which album_ids have already been claimed by a higher-ranked entry
-    # to prevent the same album from matching multiple entries
-    claimed_album_ids = set()
-
     if progress_callback:
         progress_callback(f"Matching {total} Big Board entries...", 0, total)
 
-    for i, entry in enumerate(entries):
-        key = (normalize_for_matching(entry["artist"]), normalize_for_matching(entry["title"]))
+    keys = [entry_key(e["artist"], e["title"]) for e in entries]
+    album_ids = [None] * total
+    # Each album can only be linked to one entry.
+    claimed_album_ids = set()
+
+    # Pass 1: keep every existing link (manual or automatic) whose album is
+    # still in the collection and hasn't been rejected. Doing this before any
+    # fuzzy matching means a link you made by hand can't be taken away by a
+    # higher-ranked entry that happens to fuzzy-match the same album.
+    for i, key in enumerate(keys):
         old = old_by_key.get(key)
-        rejected_ids = rejected_by_key.get(key, set())
-
-        # Always use the current CSV values for artist/title/year.
-        # The CSV is the source of truth for these fields.
-        final_artist = entry["artist"]
-        final_title = entry["title"]
-        final_year = entry["year"]
-
-        # Determine album_id: preserve existing match if unclaimed, otherwise
-        # try fuzzy matching. Each album can only match one entry (highest rank wins).
-        album_id = None
-        via_album_id = old["via_album_id"] if old else None
-        need_fuzzy = True
-
         if (
             old
-            and old["album_id"] is not None
+            and old["album_id"] in live_album_ids
             and old["album_id"] not in claimed_album_ids
-            and old["album_id"] not in rejected_ids
+            and old["album_id"] not in rejected_by_key.get(key, set())
         ):
-            # Preserve the existing association (manual or auto)
-            album_id = old["album_id"]
-            matched += 1
-            need_fuzzy = False
+            album_ids[i] = old["album_id"]
+            claimed_album_ids.add(old["album_id"])
 
-        if need_fuzzy:
-            best_match, score = find_best_match(entry, albums)
-            if (
-                best_match
-                and score >= MATCH_THRESHOLD
-                and best_match["id"] not in claimed_album_ids
-                and best_match["id"] not in rejected_ids
-            ):
-                album_id = best_match["id"]
-                matched += 1
+    # Pass 2: fuzzy-match the remaining entries, in rank order, against albums
+    # nobody has claimed and this entry hasn't rejected.
+    unmatched = []
+    for i, entry in enumerate(entries):
+        if album_ids[i] is None:
+            excluded = claimed_album_ids | rejected_by_key.get(keys[i], set())
+            candidates = [a for a in albums if a["id"] not in excluded]
+            best_match, score = find_best_match(entry, candidates)
+            if best_match and score >= MATCH_THRESHOLD:
+                album_ids[i] = best_match["id"]
+                claimed_album_ids.add(best_match["id"])
             else:
                 unmatched.append({
                     "rank": entry["rank"],
@@ -235,25 +377,30 @@ def sync_big_board(csv_path=None, progress_callback=None):
                     "title": entry["title"],
                     "year": entry["year"],
                     "owned": entry["owned"],
-                    "best_match_score": round(score) if best_match else 0,
+                    "best_match_score": round(score),
                     "best_match": (
-                        f"{best_match['artist']} — {best_match['title']}"
-                        if best_match
-                        else None
+                        f"{best_match['artist']} — {best_match['title']}" if best_match else None
                     ),
                 })
 
-        if album_id is not None:
-            claimed_album_ids.add(album_id)
+        if progress_callback and (i + 1) % 50 == 0:
+            progress_callback(f"Matched {i + 1 - len(unmatched)}/{i + 1} entries...", i + 1, total)
 
+    for i, entry in enumerate(entries):
+        old = old_by_key.get(keys[i])
+        via_album_id = old["via_album_id"] if old else None
+        # The CSV is the source of truth for artist/title/year.
         cursor.execute(
-            """INSERT INTO big_board_entries (rank, artist, title, year, album_id, via_album_id)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (entry["rank"], final_artist, final_title, final_year, album_id, via_album_id),
+            """INSERT INTO big_board_entries
+               (rank, artist, title, year, album_id, via_album_id, source_artist, source_title)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                entry["rank"], entry["artist"], entry["title"], entry["year"],
+                album_ids[i], via_album_id, entry["artist"], entry["title"],
+            ),
         )
 
-        if progress_callback and (i + 1) % 50 == 0:
-            progress_callback(f"Matched {matched}/{i + 1} entries...", i + 1, total)
+    matched = total - len(unmatched)
 
     # Log the sync (no longer need unmatched JSON since entries live in their own table)
     cursor.execute(

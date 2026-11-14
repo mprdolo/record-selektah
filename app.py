@@ -4,7 +4,7 @@ from flask import Flask, jsonify, request, render_template
 from config import SECRET_KEY
 from db import init_db, get_db_connection
 from selector import select_next_album
-from bigboard_sync import normalize_for_matching
+from bigboard_sync import reject_match, unreject_match
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -17,6 +17,14 @@ app.jinja_env.auto_reload = True
 # Track sync state
 sync_status = {"in_progress": False, "type": None, "message": "", "current": 0, "total": 0}
 sync_lock = threading.Lock()
+
+
+# Columns identifying a Big Board entry across re-syncs (its CSV text, falling
+# back to the displayed text for rows imported before source_* existed).
+_ENTRY_KEY_COLS = (
+    "COALESCE(source_artist, artist) AS key_artist, "
+    "COALESCE(source_title, title) AS key_title"
+)
 
 
 def api_response(success=True, data=None, message="", status_code=200):
@@ -90,7 +98,7 @@ def previous_album():
         styles = json.loads(album["styles"]) if album["styles"] else []
 
         cursor.execute(
-            "SELECT COUNT(*) FROM listens WHERE album_id = ?",
+            "SELECT COUNT(*) FROM listens WHERE album_id = ? AND did_listen = 1",
             (album["id"],),
         )
         times_played = cursor.fetchone()[0]
@@ -128,7 +136,7 @@ def mark_listened(album_id):
             """UPDATE listens SET did_listen = 1, skipped = 0
                WHERE id = (
                    SELECT id FROM listens WHERE album_id = ?
-                   ORDER BY selected_at DESC LIMIT 1
+                   ORDER BY id DESC LIMIT 1
                )""",
             (album_id,),
         )
@@ -149,7 +157,7 @@ def mark_skipped(album_id):
             """UPDATE listens SET skipped = 1, did_listen = 0
                WHERE id = (
                    SELECT id FROM listens WHERE album_id = ?
-                   ORDER BY selected_at DESC LIMIT 1
+                   ORDER BY id DESC LIMIT 1
                )""",
             (album_id,),
         )
@@ -620,7 +628,6 @@ def album_play_dates(album_id):
 
 @app.route("/api/album/<int:album_id>/master", methods=["POST"])
 def set_album_master(album_id):
-    from master_year_sync import fetch_master_year
 
     body = request.get_json(silent=True) or {}
     master_id = body.get("master_id")
@@ -732,8 +739,12 @@ def set_album_release(album_id):
         discogs_url = f"https://www.discogs.com/release/{release_id}"
         cover_image_url = release_data.get("cover_image_url")
 
+        # Store the chosen release as an override instead of replacing
+        # discogs_release_id: that ID is how the Discogs sync recognises the
+        # album, and changing it made the next sync treat the album as removed
+        # and re-add it as a brand-new record with no history.
         updates = [
-            "discogs_release_id = ?", "discogs_url = ?", "updated_at = CURRENT_TIMESTAMP"
+            "release_id_override = ?", "discogs_url = ?", "updated_at = CURRENT_TIMESTAMP"
         ]
         params = [release_id, discogs_url]
 
@@ -767,7 +778,7 @@ def use_release_as_master(album_id):
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, discogs_release_id FROM albums WHERE id = ?",
+            "SELECT id, COALESCE(release_id_override, discogs_release_id) AS discogs_release_id FROM albums WHERE id = ?",
             (album_id,),
         )
         album = cursor.fetchone()
@@ -805,7 +816,11 @@ def search_albums():
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        like = f"%{q}%"
+        # Every word must appear in the artist or the title, so "dylan blonde"
+        # finds Bob Dylan's Blonde on Blonde.
+        words = q.split()
+        word_clauses = " AND ".join("(a.artist LIKE ? OR a.title LIKE ?)" for _ in words)
+        params = [p for w in words for p in (f"%{w}%", f"%{w}%")]
         cursor.execute(
             """SELECT a.id, a.artist, a.title, a.release_year, a.master_year,
                       a.master_year_override, a.cover_image_url, a.genres,
@@ -814,10 +829,10 @@ def search_albums():
                LEFT JOIN big_board_entries bb ON bb.album_id = a.id
                    AND bb.rank = (SELECT MIN(bb2.rank) FROM big_board_entries bb2 WHERE bb2.album_id = a.id)
                WHERE a.is_removed = 0
-                 AND (a.artist LIKE ? OR a.title LIKE ?)
+                 AND """ + word_clauses + """
                ORDER BY a.artist, a.title
                LIMIT 20""",
-            (like, like),
+            params,
         )
         rows = cursor.fetchall()
 
@@ -911,12 +926,29 @@ def match_bigboard():
             return api_response(False, message="Album not found.", status_code=404)
 
         # Check entry exists
-        cursor.execute("SELECT id, artist, title FROM big_board_entries WHERE rank = ?", (rank,))
+        cursor.execute(
+            f"SELECT album_id, {_ENTRY_KEY_COLS} FROM big_board_entries WHERE rank = ?",
+            (rank,),
+        )
         entry_row = cursor.fetchone()
         if not entry_row:
             return api_response(False, message="Big Board entry not found.", status_code=404)
 
-        # Clear any existing match to this album (one rank per album)
+        # Relinking an entry away from an album is the same as saying "this
+        # entry is not that album": remember it so a re-sync doesn't put the
+        # old link back.
+        old_album_id = entry_row["album_id"]
+        if old_album_id is not None and old_album_id != album_id:
+            reject_match(cursor, entry_row["key_artist"], entry_row["key_title"], old_album_id)
+
+        # One rank per album: if another entry held this album, it loses it,
+        # and shouldn't win it back on the next re-sync either.
+        cursor.execute(
+            f"SELECT rank, {_ENTRY_KEY_COLS} FROM big_board_entries WHERE album_id = ? AND rank != ?",
+            (album_id, rank),
+        )
+        for other in cursor.fetchall():
+            reject_match(cursor, other["key_artist"], other["key_title"], album_id)
         cursor.execute(
             "UPDATE big_board_entries SET album_id = NULL WHERE album_id = ?",
             (album_id,),
@@ -928,17 +960,9 @@ def match_bigboard():
             (album_id, rank),
         )
 
-        # The user is explicitly confirming this match — forget any past
-        # rejection of this exact entry/album pairing so it isn't blocked.
-        cursor.execute(
-            """DELETE FROM big_board_rejected_matches
-               WHERE entry_artist_key = ? AND entry_title_key = ? AND album_id = ?""",
-            (
-                normalize_for_matching(entry_row["artist"]),
-                normalize_for_matching(entry_row["title"]),
-                album_id,
-            ),
-        )
+        # The user is explicitly confirming this match, so forget any past
+        # rejection of this exact entry/album pairing.
+        unreject_match(cursor, entry_row["key_artist"], entry_row["key_title"], album_id)
 
         conn.commit()
         return api_response(message=f"Album matched to Big Board rank #{rank}.")
@@ -959,14 +983,13 @@ def unmatch_bigboard():
         album_id = int(album_id)
         cursor = conn.cursor()
 
-        # Look up the entry's artist/title before clearing, so we can
-        # remember this rejection and keep future re-syncs from
-        # re-applying the same incorrect match.
+        # Look up the entry before clearing, so we can remember this
+        # rejection and keep future re-syncs from re-applying it.
         cursor.execute(
-            "SELECT artist, title FROM big_board_entries WHERE album_id = ?",
+            f"SELECT {_ENTRY_KEY_COLS} FROM big_board_entries WHERE album_id = ?",
             (album_id,),
         )
-        entry_row = cursor.fetchone()
+        entry_rows = cursor.fetchall()
 
         # Clear album_id on the entry — entry stays in table as unowned
         cursor.execute(
@@ -976,17 +999,8 @@ def unmatch_bigboard():
         if cursor.rowcount == 0:
             return api_response(False, message="Album has no Big Board rank.", status_code=400)
 
-        if entry_row:
-            cursor.execute(
-                """INSERT OR IGNORE INTO big_board_rejected_matches
-                   (entry_artist_key, entry_title_key, album_id)
-                   VALUES (?, ?, ?)""",
-                (
-                    normalize_for_matching(entry_row["artist"]),
-                    normalize_for_matching(entry_row["title"]),
-                    album_id,
-                ),
-            )
+        for entry_row in entry_rows:
+            reject_match(cursor, entry_row["key_artist"], entry_row["key_title"], album_id)
 
         conn.commit()
         return api_response(message="Big Board rank removed.")
@@ -1119,7 +1133,6 @@ def save_settings():
 
 def run_sync(sync_type):
     """Run a sync operation in a background thread."""
-    global sync_status
 
     def progress_callback(message, current, total):
         sync_status["message"] = message
@@ -1130,9 +1143,13 @@ def run_sync(sync_type):
         if sync_type == "discogs":
             from discogs_sync import sync_collection
             results = sync_collection(progress_callback=progress_callback)
+            replaced = (
+                f" Kept history for {results['replaced']} swapped pressings."
+                if results.get("replaced") else ""
+            )
             sync_status["message"] = (
                 f"Done! Added {results['added']}, updated {results['updated']}, "
-                f"removed {results['removed']}."
+                f"removed {results['removed']}.{replaced}"
             )
         elif sync_type == "bigboard":
             from bigboard_sync import sync_big_board
