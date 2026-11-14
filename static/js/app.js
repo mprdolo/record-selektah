@@ -2655,6 +2655,169 @@
         renderListeningStats();
     });
 
+    // --- Taste Test ---
+
+    const tasteModal = $('#taste-modal');
+    const tasteBody = $('#taste-body');
+    const tasteProgress = $('#taste-progress');
+    let tastePairs = [];
+    let tasteIndex = 0;
+    let tasteResults = [];
+    let tasteBusy = false;
+    let tasteChanged = false;
+
+    async function openTasteTest() {
+        tasteModal.classList.add('visible');
+        tasteChanged = false;
+        await startTasteRound();
+    }
+
+    function closeTasteTest() {
+        tasteModal.classList.remove('visible');
+        if (tasteChanged) {
+            bigboardData = [];  // force a fresh load next time
+            if (!bigboardSection.classList.contains('hidden')) reloadBigBoardKeepingScroll();
+        }
+    }
+
+    async function startTasteRound() {
+        tasteBody.innerHTML = '<p class="taste-loading">Picking albums…</p>';
+        tasteProgress.textContent = '';
+        tasteIndex = 0;
+        tasteResults = [];
+        try {
+            const resp = await api('/api/taste-test/pairs');
+            tastePairs = resp.data.pairs;
+            renderTastePair();
+        } catch (err) {
+            tasteBody.innerHTML = `<p class="taste-loading">${esc(err.message)}</p>`;
+        }
+    }
+
+    function tasteCardHtml(e, side) {
+        const cover = e.cover_image_url
+            ? `<img class="taste-cover" src="${escapeAttr(e.cover_image_url)}" alt="" onerror="this.style.visibility='hidden'">`
+            : `<div class="taste-cover taste-cover-empty">?</div>`;
+        const genres = (e.genres || []).slice(0, 3).map(g => `<span class="bb-tag bb-tag-genre">${esc(g)}</span>`).join('');
+        return `
+            <button class="taste-card" data-side="${side}">
+                ${cover}
+                <span class="taste-artist">${esc(e.artist)}</span>
+                <span class="taste-title">${esc(e.title)}</span>
+                <span class="taste-meta">${e.year || ''}${e.owned ? '' : ' · not in your collection'}</span>
+                <span class="taste-tags">${genres}</span>
+                <span class="taste-rank" aria-hidden="true">#${e.rank}</span>
+                <span class="taste-key">${side === 0 ? '← key' : '→ key'}</span>
+            </button>
+        `;
+    }
+
+    function renderTastePair() {
+        if (tasteIndex >= tastePairs.length) return renderTasteSummary();
+        const pair = tastePairs[tasteIndex];
+        tasteProgress.textContent = `${tasteIndex + 1} of ${tastePairs.length}`;
+        tasteBody.innerHTML = `
+            <p class="taste-prompt">Which do you prefer?</p>
+            <div class="taste-pair">
+                ${tasteCardHtml(pair[0], 0)}
+                <span class="taste-vs">or</span>
+                ${tasteCardHtml(pair[1], 1)}
+            </div>
+            <p class="taste-outcome" id="taste-outcome">&nbsp;</p>
+            <div class="taste-footer">
+                <button class="btn btn-sm btn-bb-action" id="btn-taste-skip">Skip this pair</button>
+            </div>
+        `;
+        tasteBody.querySelectorAll('.taste-card').forEach(card => {
+            card.addEventListener('click', () => chooseTaste(parseInt(card.dataset.side, 10)));
+        });
+        $('#btn-taste-skip').addEventListener('click', () => {
+            if (tasteBusy) return;
+            tasteResults.push({ pair, skipped: true });
+            tasteIndex++;
+            renderTastePair();
+        });
+    }
+
+    async function chooseTaste(side) {
+        if (tasteBusy || tasteIndex >= tastePairs.length) return;
+        tasteBusy = true;
+        const pair = tastePairs[tasteIndex];
+        const winner = pair[side], loser = pair[1 - side];
+        const cards = tasteBody.querySelectorAll('.taste-card');
+        cards[side].classList.add('chosen');
+        cards[1 - side].classList.add('not-chosen');
+        tasteBody.classList.add('revealed');
+        const outcome = $('#taste-outcome');
+        try {
+            const resp = await api('/api/taste-test/vote', 'POST', { winner_id: winner.id, loser_id: loser.id });
+            const r = resp.data;
+            tasteResults.push({ pair, winner, loser, result: r });
+            if (r.moved > 0) {
+                tasteChanged = true;
+                outcome.textContent = `${winner.title} moves up ${r.moved} place${r.moved === 1 ? '' : 's'}: #${r.winner_rank_before} → #${r.winner_rank_after}`;
+                outcome.className = 'taste-outcome moved';
+            } else if (r.winner_rank_before < r.loser_rank) {
+                outcome.textContent = `Agreed: ${winner.title} is already ranked higher.`;
+                outcome.className = 'taste-outcome';
+            } else {
+                outcome.textContent = `${winner.title} is already right behind it.`;
+                outcome.className = 'taste-outcome';
+            }
+            // Later pairs may include albums whose rank just shifted.
+            tastePairs.slice(tasteIndex + 1).flat().forEach(e => {
+                if (e.id === winner.id) e.rank = r.winner_rank_after;
+                else if (r.moved > 0 && e.rank >= r.winner_rank_after && e.rank < r.winner_rank_before) e.rank += 1;
+            });
+        } catch (err) {
+            outcome.textContent = err.message;
+            outcome.className = 'taste-outcome error';
+        }
+        setTimeout(() => {
+            tasteBusy = false;
+            tasteBody.classList.remove('revealed');
+            tasteIndex++;
+            renderTastePair();
+        }, 1400);
+    }
+
+    function renderTasteSummary() {
+        tasteProgress.textContent = 'Done';
+        const voted = tasteResults.filter(r => !r.skipped && r.result);
+        const moved = voted.filter(r => r.result.moved > 0);
+        const agreed = voted.length - moved.length;
+        const rows = voted.map(r => {
+            const m = r.result.moved;
+            return `
+                <li class="taste-summary-row">
+                    <span class="taste-summary-pick"><strong>${esc(r.winner.artist)}</strong> — ${esc(r.winner.title)}</span>
+                    <span class="taste-summary-over">over ${esc(r.loser.title)}</span>
+                    <span class="taste-summary-move${m ? ' up' : ''}">${m ? `▲ ${m} &nbsp;#${r.result.winner_rank_before} → #${r.result.winner_rank_after}` : 'no change'}</span>
+                </li>`;
+        }).join('');
+        tasteBody.innerHTML = `
+            <p class="taste-prompt">Round complete</p>
+            <p class="taste-summary-line">${moved.length} album${moved.length === 1 ? '' : 's'} moved up · ${agreed} pick${agreed === 1 ? '' : 's'} agreed with your current order${tasteResults.length - voted.length ? ` · ${tasteResults.length - voted.length} skipped` : ''}</p>
+            <ul class="taste-summary">${rows}</ul>
+            <div class="taste-footer">
+                <button class="btn btn-sm btn-bb-action" id="btn-taste-done">Done</button>
+                <button class="btn btn-sm btn-primary" id="btn-taste-again">Another round</button>
+            </div>
+        `;
+        $('#btn-taste-done').addEventListener('click', closeTasteTest);
+        $('#btn-taste-again').addEventListener('click', startTasteRound);
+    }
+
+    $('#btn-taste').addEventListener('click', openTasteTest);
+    $('#btn-taste-close').addEventListener('click', closeTasteTest);
+    tasteModal.addEventListener('click', (ev) => { if (ev.target === tasteModal) closeTasteTest(); });
+    document.addEventListener('keydown', (ev) => {
+        if (!tasteModal.classList.contains('visible')) return;
+        if (ev.key === 'ArrowLeft') chooseTaste(0);
+        else if (ev.key === 'ArrowRight') chooseTaste(1);
+        else if (ev.key === 'Escape') closeTasteTest();
+    });
+
     // --- Escape helpers ---
 
     function esc(str) {

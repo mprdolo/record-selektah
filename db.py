@@ -99,6 +99,21 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_big_board_album_id
             ON big_board_entries(album_id);
 
+        -- Taste test answers: which of two Big Board albums you preferred,
+        -- and where the winner moved. Kept as a history; ranks are applied
+        -- to big_board_entries at the time of the vote.
+        CREATE TABLE IF NOT EXISTS taste_test_votes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            winner_artist TEXT NOT NULL,
+            winner_title TEXT NOT NULL,
+            loser_artist TEXT NOT NULL,
+            loser_title TEXT NOT NULL,
+            winner_rank_before INTEGER,
+            loser_rank_before INTEGER,
+            winner_rank_after INTEGER,
+            voted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
         -- Remembers Big Board entry/album pairings the user explicitly
         -- rejected ("I don't own this album", or relinking the entry to a
         -- different album), so re-syncs don't
