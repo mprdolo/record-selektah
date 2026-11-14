@@ -3,12 +3,12 @@
    =========================== */
 
 :root {
-    /* Public Diplomacy Records palette: the orange "Records Are a Sound
-       Purchase" sticker, black ink, and the Substack's light grey page.
-       (Token names are historical; --gold is the orange, --green the ink.) */
-    --gold: #F2A82D;            /* sticker orange: fills, badges, rules */
-    --gold-light: #F7C46A;
-    --gold-text: #A65F00;       /* orange dark enough for text on light grey */
+    /* Public Diplomacy Records palette, matching the Substack: its green
+       accent, black ink, and light grey page.
+       (Token names are historical; --gold is the accent, --green the ink.) */
+    --gold: #78A947;            /* Substack accent: fills, badges, rules */
+    --gold-light: #A3C97C;
+    --gold-text: #4A7323;       /* accent dark enough for text on light grey */
     --green: #1A1A1A;           /* primary buttons */
     --green-dark: #000000;
     --brown: #111111;           /* header, headings */
@@ -346,12 +346,12 @@ body {
     position: absolute;
     top: -8px;
     right: -8px;
-    background: linear-gradient(135deg, var(--gold), #F7B84A);
+    background: linear-gradient(135deg, var(--gold), #8DBB5E);
     color: var(--brown);
     border-radius: 10px;
     padding: 6px 12px;
     text-align: center;
-    box-shadow: 0 4px 16px rgba(242, 168, 45, 0.5);
+    box-shadow: 0 4px 16px rgba(120, 169, 71, 0.5);
     z-index: 2;
     line-height: 1.1;
     display: flex;
@@ -519,7 +519,7 @@ body {
 }
 
 .history-status.pending {
-    background-color: rgba(242, 168, 45, 0.15);
+    background-color: rgba(120, 169, 71, 0.15);
     color: var(--gold-text);
 }
 
@@ -1062,7 +1062,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 6px rgba(242, 168, 45, 0.3);
+    box-shadow: 0 2px 6px rgba(120, 169, 71, 0.3);
 }
 
 .bb-card.unowned .bb-rank {
@@ -1361,7 +1361,7 @@ body {
 }
 
 .detail-pill.style-pill {
-    background: rgba(242, 168, 45, 0.15);
+    background: rgba(120, 169, 71, 0.15);
     color: var(--brown);
 }
 
@@ -1741,7 +1741,7 @@ body {
 .bb-jump-btn:hover {
     border-color: var(--gold);
     color: var(--brown);
-    background: rgba(242, 168, 45, 0.08);
+    background: rgba(120, 169, 71, 0.08);
 }
 
 /* ---- History Clickable ---- */
@@ -1895,7 +1895,7 @@ body {
     font-weight: 600;
     padding: 2px 6px;
     border-radius: 100px;
-    background: rgba(242, 168, 45, 0.15);
+    background: rgba(120, 169, 71, 0.15);
     color: var(--gold-text);
     max-width: 100px;
     white-space: nowrap;
@@ -1919,7 +1919,7 @@ body {
     align-items: center;
     gap: 8px;
     padding: 8px 12px;
-    background: rgba(242, 168, 45, 0.1);
+    background: rgba(120, 169, 71, 0.1);
     border-radius: var(--radius);
     margin-top: 12px;
     margin-bottom: 4px;
@@ -2155,7 +2155,7 @@ body {
 .lib-jump-btn:hover {
     border-color: var(--gold);
     color: var(--brown);
-    background: rgba(242, 168, 45, 0.08);
+    background: rgba(120, 169, 71, 0.08);
 }
 
 .lib-year-sub {
@@ -2302,7 +2302,7 @@ body {
     font-weight: 600;
     padding: 2px 6px;
     border-radius: 100px;
-    background: rgba(242, 168, 45, 0.15);
+    background: rgba(120, 169, 71, 0.15);
     color: var(--gold-text);
 }
 
@@ -2437,7 +2437,7 @@ body {
     font-weight: 600;
     padding: 1px 6px;
     border-radius: 100px;
-    background: rgba(242, 168, 45, 0.15);
+    background: rgba(120, 169, 71, 0.15);
     color: var(--gold-text);
     white-space: nowrap;
 }

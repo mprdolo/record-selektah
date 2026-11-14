@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Public Diplomacy Records">
-  <!-- After the "Records Are a Sound Purchase" sticker: orange square, black inset rule, bold black type -->
-  <rect width="64" height="64" rx="3" fill="#F2A82D"/>
+  <!-- Sticker-style mark in the Substack accent green: square, black inset rule, bold black type -->
+  <rect width="64" height="64" rx="3" fill="#78A947"/>
   <rect x="5" y="5" width="54" height="54" fill="none" stroke="#111" stroke-width="2.5"/>
   <text x="32" y="41" text-anchor="middle" font-family="'League Spartan', Futura, 'Century Gothic', Arial, sans-serif" font-weight="800" font-size="21" letter-spacing="0.5" fill="#111">PDR</text>
 </svg>
