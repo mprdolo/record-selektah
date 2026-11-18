@@ -55,18 +55,21 @@ body {
 }
 
 .header-inner {
-    max-width: 720px;
+    max-width: 1100px;
     margin: 0 auto;
     padding: 14px 20px;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
+    gap: 12px 32px;
 }
 
 .logo {
     display: flex;
     align-items: center;
     gap: 10px;
+    flex-shrink: 0;
 }
 
 .logo-icon {
@@ -117,6 +120,7 @@ body {
     color: var(--cream);
     padding: 8px 14px;
     font-size: 0.8rem;
+    white-space: nowrap;
 }
 
 .btn-header:hover:not(:disabled) {
@@ -761,6 +765,7 @@ body {
 
 .header-buttons {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
     align-items: center;
 }
